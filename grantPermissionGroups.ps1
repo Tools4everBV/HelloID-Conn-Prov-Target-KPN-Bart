@@ -4,8 +4,12 @@ $pRef = $permissionReference | ConvertFrom-Json
 $auditLogs = New-Object Collections.Generic.List[PSCustomObject]
 $success = $false
 
-Import-Module $config.ModuleLocation -Force
-Initialize-KPNBartServiceClients -username $config.UserName -password $Config.password -BaseUrl $config.Url
+try {
+    Import-Module $config.ModuleLocation -Force
+    Initialize-KPNBartServiceClients -username $config.UserName -password $Config.password -BaseUrl $config.Url
+} catch {
+    throw("Initialize-KPNBartServiceClients failed with error: $($_.Exception.Message)")
+}
 
 $userIdentity = [KPNBartConnectedServices.CommandService.ObjectIdentity]::new()
 if (![string]::IsNullOrEmpty($aRef.objectGuid)) {

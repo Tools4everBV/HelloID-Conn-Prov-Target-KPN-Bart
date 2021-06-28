@@ -4,12 +4,10 @@ $aRef = $AccountReference | ConvertFrom-Json
 $success = $true
 $auditLogs =[System.Collections.Generic.List[PSCustomObject]]::New()
 
-Import-Module $config.ModuleLocation -Force
-
-try{
-Initialize-KPNBartServiceClients -username $config.UserName -password $Config.password -BaseUrl $config.Url
-}
-catch {
+try {
+    Import-Module $config.ModuleLocation -Force
+    Initialize-KPNBartServiceClients -username $config.UserName -password $Config.password -BaseUrl $config.Url
+} catch {
     throw("Initialize-KPNBartServiceClients failed with error: $($_.Exception.Message)")
 }
 
