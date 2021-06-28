@@ -28,7 +28,7 @@ The *HID-Conn-Prov-Target-KPN-Bart* needs to be **executed on-premises**. Make s
 
 - [ ] KPN Bart PowerShell module
 
-  The KPN Bart PowerShell module must be installed locally. The module can be downloaded directly from the Github repository.
+  The KPN Bart PowerShell module must be installed locally. The module can be downloaded directly from the Github repository. Make sure you unblock the DLL in Windows.
 
 - [ ] Windows PowerShell 5.1
 
