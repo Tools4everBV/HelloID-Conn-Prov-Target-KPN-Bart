@@ -1,6 +1,6 @@
 $config = ConvertFrom-Json $configuration
 $dR = $dryRun |  ConvertFrom-Json  
-$p = $person | ConvertFrom-Json;
+$p = $person | ConvertFrom-Json
 $aRef = $AccountReference | ConvertFrom-Json
 $success = $true
 $auditLogs =[System.Collections.Generic.List[PSCustomObject]]::New()
@@ -38,7 +38,7 @@ if (-not ($dR -eq $true)) {
     }
 }
 
-$auditMessage = "Kpn bart user delete for person " + $p.DisplayName + " succeeded";
+$auditMessage = "Kpn bart user delete for person " + $p.DisplayName + " succeeded"
 $auditLogs.Add([PSCustomObject]@{ 
     action  = "DeleteAccount"
     Message = $auditMessage
@@ -46,8 +46,8 @@ $auditLogs.Add([PSCustomObject]@{
 }) 
 
 $result = [PSCustomObject]@{ 
-    Success       = $success;  
-    Auditlogs     = $auditLogs ;
+    Success       = $success  
+    Auditlogs     = $auditLogs
     AccountReference =$aRef
 }
 

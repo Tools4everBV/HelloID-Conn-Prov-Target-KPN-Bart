@@ -1,8 +1,8 @@
 $aRef = $AccountReference | ConvertFrom-Json
 $config = ConvertFrom-Json $configuration
 $dR = $dryRun |  ConvertFrom-Json 
-$mRef = $managerAccountReference | ConvertFrom-Json; 
-$p = $person | ConvertFrom-Json;
+$mRef = $managerAccountReference | ConvertFrom-Json 
+$p = $person | ConvertFrom-Json
 
 $success = $true
 $auditLogs =[System.Collections.Generic.List[PSCustomObject]]::New()
@@ -41,7 +41,7 @@ $commandObjectIdentity.Value = $queryObjectIdentity.Value
 
 
 [string] $newpassword = "testww_$($p.DisplayName)"
-$encryptedPassword = ConvertTo-SecureString $newpassword -Force -AsPlainText;
+$encryptedPassword = ConvertTo-SecureString $newpassword -Force -AsPlainText
 
 #specification of direct Ad attributes to update
 
@@ -104,8 +104,8 @@ if (-not ($dR -eq $true))
                 $auditLogs.Add([PSCustomObject]@{ 
                     action  = "UpdateAccount"
                     Message = $auditMessage
-                    IsError = $true;
-                });            
+                    IsError = $true
+                })            
             }
         }
     }
@@ -247,7 +247,7 @@ $result = [PSCustomObject]@{
     Success       = $success  
     AuditLogs     = $auditLogs
     Account       = $account 
-};
+}
 
 #send result back
 Write-Output $result | ConvertTo-Json -Depth 10

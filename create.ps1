@@ -1,7 +1,7 @@
 $config = ConvertFrom-Json $configuration
 $dR = $dryRun | ConvertFrom-Json
-$p = $person | ConvertFrom-Json;
-$mRef = $managerAccountReference | ConvertFrom-Json;
+$p = $person | ConvertFrom-Json
+$mRef = $managerAccountReference | ConvertFrom-Json
 $resultSamAccountName = ""
 
 $auditLogs = [System.Collections.Generic.List[PSCustomObject]]::New()
@@ -15,7 +15,7 @@ try {
 }
 
 [string] $newpassword = "testww_$($p.DisplayName)"
-$encryptedPassword = ConvertTo-SecureString $newpassword -Force -AsPlainText;
+$encryptedPassword = ConvertTo-SecureString $newpassword -Force -AsPlainText
 $accountCreateuserModel = @{
     FirstName         = $p.Name.GivenName
     LastName          = $p.Name.FamilyName
@@ -90,12 +90,12 @@ if ($accountAlreadyExists -eq $false) {
         try {
             $CreateResult = New-KPNBartUser @accountCreateuserModel
             if ($CreateResult.Error -eq $true) {
-                $auditMessage = "Kpn bart user create for person " + $p.DisplayName + " failed";
+                $auditMessage = "Kpn bart user create for person " + $p.DisplayName + " failed"
                 $auditLogs.Add([PSCustomObject]@{
                         action  = "CreateAccount"
                         Message = $auditMessage
-                        IsError = $true;
-                    });
+                        IsError = $true
+                    })
                 throw($auditMessage)
 
             }
@@ -104,12 +104,12 @@ if ($accountAlreadyExists -eq $false) {
             if (-not ($null -eq $createdUser)) {
                 $resultObjectGUID = $createdUser.ObjectGUID
                 $resultSamAccountName = $createdUser.SamAccountName
-                $auditMessage = "Kpn bart user create for person " + $p.DisplayName + " succeeded";
+                $auditMessage = "Kpn bart user create for person " + $p.DisplayName + " succeeded"
                 $auditLogs.Add([PSCustomObject]@{
                         action  = "CreateAccount"
                         Message = $auditMessage
-                        IsError = $false;
-                    });
+                        IsError = $false
+                    })
 
             }
 
@@ -140,8 +140,8 @@ if (-not ($dR -eq $true)) {
                 $auditLogs.Add([PSCustomObject]@{
                         action  = "CreateAccount"
                         Message = $auditMessage
-                        IsError = $true;
-                    });
+                        IsError = $true
+                    })
             }
         }
     }
@@ -269,21 +269,21 @@ if ($success -eq $true) {
     $auditLogs.Add([PSCustomObject]@{
             action  = "CreateAccount"
             Message = $auditMessage
-            IsError = $false;
-        });
+            IsError = $false
+        })
 
 }
 
 $result = [PSCustomObject]@{
-    Success          = $success;
+    Success          = $success
     AccountReference = @{ 
         UserPrincipalName   = $accountCreateUserModel.UserPrincipalName
         ObjectGuid          = $resultObjectGUID
         SamAccountName      = $resultSamAccountName
     }
-    Auditlogs        = $auditLogs;
-    Account          = $account;
-};
+    Auditlogs        = $auditLogs
+    Account          = $account
+}
 
 #send result back
 Write-Output $result | ConvertTo-Json -Depth 10

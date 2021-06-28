@@ -1,7 +1,7 @@
 $aRef = $AccountReference | ConvertFrom-Json
 $config = ConvertFrom-Json $configuration
 $dR = $dryRun |  ConvertFrom-Json  
-$p = $person | ConvertFrom-Json;
+$p = $person | ConvertFrom-Json
 $success = $true
 $auditLogs =[System.Collections.Generic.List[PSCustomObject]]::New()
 
@@ -38,17 +38,17 @@ if (-not ($dR -eq $true)) {
     }
 }
 
-$auditMessage = "Kpn bart user disable for person " + $p.DisplayName + " succeeded";
+$auditMessage = "Kpn bart user disable for person " + $p.DisplayName + " succeeded"
 $auditLogs.Add([PSCustomObject]@{ 
     action  = "DisableAccount"
     Message = $auditMessage
-    IsError = $false;
-}); 
+    IsError = $false
+}) 
 
 $result = [PSCustomObject]@{ 
-    Success       = $success;  
-    Auditlogs     = $auditLogs ; 
-};
+    Success       = $success  
+    Auditlogs     = $auditLogs  
+}
 Write-Output $result | ConvertTo-Json -Depth 10
 
 
