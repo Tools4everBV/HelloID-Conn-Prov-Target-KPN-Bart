@@ -1,6 +1,5 @@
 $aRef = $AccountReference | ConvertFrom-Json
 $config = ConvertFrom-Json $configuration
-$dR = $dryRun |  ConvertFrom-Json 
 $mRef = $managerAccountReference | ConvertFrom-Json 
 $p = $person | ConvertFrom-Json
 
@@ -92,7 +91,7 @@ foreach ($keyValue in $accountUpdateAttributes.GetEnumerator())
     $modifyCommand.Value = $keyValue.Value
     $CommandList.add($modifyCommand)    
 }
-if (-not ($dR -eq $true)) 
+if (-not ($dryRun -eq $true)) 
 {
     try {
         $UpdateResults = Set-KPNBartUserAttributeMultiple -CommandList $CommandList
@@ -115,7 +114,7 @@ if (-not ($dR -eq $true))
 }
 
 # update the password 
-if (-not ($dR -eq $true)) {
+if (-not ($dryRun -eq $true)) {
 
     if ($accountSpecialAttributes.updateExistingPasswordFlag -eq $true){
         try{
@@ -128,7 +127,7 @@ if (-not ($dR -eq $true)) {
 }
 
 # Force user to change password at the next logon
-if (-not ($dR -eq $true)) {
+if (-not ($dryRun -eq $true)) {
 
     if($accountSpecialAttributes.ChangePasswordAtLogon -eq $true) {
 
@@ -147,7 +146,7 @@ if ($accountSpecialAttributes.UpdateExchangeWhenSettingMailAttribute -eq $true)
 { 
     foreach ($emailAlias in $accountSpecialAttributes.EmailAliasesToAdd)
     {
-        if (-not ($dR -eq $true)) {
+        if (-not ($dryRun -eq $true)) {
             try{
                 New-KPNBartEmailAlias -Identity $commandObjectIdentity -EmailAddress $emailAlias              
             }
@@ -163,7 +162,7 @@ if ( -not [string]::IsNullOrEmpty($accountSpecialAttributes.Mail))
 {
     if ($accountSpecialAttributes.UpdateExchangeWhenSettingMailAttribute -eq $true)
     {
-        if (-not ($dR -eq $true)) {
+        if (-not ($dryRun -eq $true)) {
             try{
                 Set-KPNBartEmailPrimaryAddress -Identity $commandObjectIdentity -EmailAddress $accountSpecialAttributes.Mail            
             }
@@ -175,7 +174,7 @@ if ( -not [string]::IsNullOrEmpty($accountSpecialAttributes.Mail))
     }
     else
     {
-        if (-not ($dR -eq $true)) {
+        if (-not ($dryRun -eq $true)) {
             try{
                 Set-KPNBartEmailADAttribute -Identity $commandObjectIdentity -EmailAddress $accountSpecialAttributes.Mail            
             }
@@ -191,7 +190,7 @@ if ($accountSpecialAttributes.UpdateExchangeWhenSettingMailAttribute -eq $true)
 { 
     foreach ($emailAlias in $accountSpecialAttributes.EmailAliasesToRemove)
     {
-        if (-not ($dR -eq $true)) {
+        if (-not ($dryRun -eq $true)) {
             try{
                 Remove-KPNBartEmailAlias -Identity $commandObjectIdentity -EmailAddress $emailAlias              
             }
@@ -209,7 +208,7 @@ if ( -not [string]::IsNullOrEmpty($accountSpecialAttributes.ManagerUserPrincipal
     $managerIdentity.IdentityType = "UserPrincipalName"
     $managerIdentity.Value = $accountSpecialAttributes.ManagerUserPrincipalName
 
-    if (-not ($dR -eq $true)) {
+    if (-not ($dryRun -eq $true)) {
         try{
             Set-KPNBartUserManager -Identity $commandObjectIdentity -ManagerIdentity $managerIdentity           
         }
@@ -223,7 +222,7 @@ if ( -not [string]::IsNullOrEmpty($accountSpecialAttributes.ManagerUserPrincipal
 
 if (-not [string]::IsNullOrEmpty($accountSpecialAttributes.Persona))
 {
-    if (-not ($dR -eq $true)) {
+    if (-not ($dryRun -eq $true)) {
         try{
             Set-KPNBartUserPersona -Identity $commandObjectIdentity -Persona $accountSpecialAttributes.Persona          
         }

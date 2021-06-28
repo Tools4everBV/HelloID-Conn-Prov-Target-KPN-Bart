@@ -1,5 +1,4 @@
 $config = ConvertFrom-Json $configuration
-$dR = $dryRun | ConvertFrom-Json
 $p = $person | ConvertFrom-Json
 $mRef = $managerAccountReference | ConvertFrom-Json
 $resultSamAccountName = ""
@@ -86,7 +85,7 @@ $success = $true
 
 
 if ($accountAlreadyExists -eq $false) {
-    if (-not ($dR -eq $true)) {
+    if (-not ($dryRun -eq $true)) {
         try {
             $CreateResult = New-KPNBartUser @accountCreateuserModel
             if ($CreateResult.Error -eq $true) {
@@ -129,7 +128,7 @@ foreach ($keyValue in $accountUpdateAttributes.GetEnumerator()) {
     $CommandList.add($modifyCommand)
 }
 
-if (-not ($dR -eq $true)) {
+if (-not ($dryRun -eq $true)) {
     try {
         $UpdateResults = Set-KPNBartUserAttributeMultiple -CommandList $CommandList
 
@@ -153,7 +152,7 @@ if (-not ($dR -eq $true)) {
 
 # Convert user to the correct user type
 if ( -not [string]::IsNullOrEmpty($accountSpecialAttributes.UserType)) {
-    if (-not ($dR -eq $true)) {
+    if (-not ($dryRun -eq $true)) {
         try {
             Set-KPNBartUserType  -Identity $commandObjectIdentity -userType $accountSpecialAttributes.UserType
         } catch {
@@ -164,7 +163,7 @@ if ( -not [string]::IsNullOrEmpty($accountSpecialAttributes.UserType)) {
 
 # disable the initial user
 if ($accountSpecialAttributes.IsActive -eq $false) {
-    if (-not ($dR -eq $true)) {
+    if (-not ($dryRun -eq $true)) {
         try {
             Disable-KPNBartUser  -Identity $commandObjectIdentity
         } catch {
@@ -175,7 +174,7 @@ if ($accountSpecialAttributes.IsActive -eq $false) {
 # update the password
 if ($accountAlreadyExists) {
 
-    if (-not ($dR -eq $true)) {
+    if (-not ($dryRun -eq $true)) {
 
         if ($updateExistingPasswordFlag -eq $true) {
             try {
@@ -188,7 +187,7 @@ if ($accountAlreadyExists) {
 }
 
 # Force user to change password at the next logon
-if (-not ($dR -eq $true)) {
+if (-not ($dryRun -eq $true)) {
 
     if ($accountSpecialAttributes.ChangePasswordAtLogon -eq $true) {
 
@@ -204,7 +203,7 @@ if (-not ($dR -eq $true)) {
 # Set aliases before setting primary
 if ($accountSpecialAttributes.UpdateExchangeWhenSettingMailAttribute -eq $true) {
     foreach ($emailAlias in $accountSpecialAttributes.EmailAliasesToAdd) {
-        if (-not ($dR -eq $true)) {
+        if (-not ($dryRun -eq $true)) {
             try {
                 New-KPNBartEmailAlias -Identity $commandObjectIdentity -EmailAddress $emailAlias
             } catch {
@@ -217,7 +216,7 @@ if ($accountSpecialAttributes.UpdateExchangeWhenSettingMailAttribute -eq $true) 
 # Set mail
 if ( -not [string]::IsNullOrEmpty($accountSpecialAttributes.Mail)) {
     if ($accountSpecialAttributes.UpdateExchangeWhenSettingMailAttribute -eq $true) {
-        if (-not ($dR -eq $true)) {
+        if (-not ($dryRun -eq $true)) {
             try {
                 Set-KPNBartEmailPrimaryAddress -Identity $commandObjectIdentity -EmailAddress $accountSpecialAttributes.Mail
             } catch {
@@ -226,7 +225,7 @@ if ( -not [string]::IsNullOrEmpty($accountSpecialAttributes.Mail)) {
         }
 
     } else {
-        if (-not ($dR -eq $true)) {
+        if (-not ($dryRun -eq $true)) {
             try {
                 Set-KPNBartEmailADAttribute -Identity $commandObjectIdentity -EmailAddress $accountSpecialAttributes.Mail
             } catch {
@@ -242,7 +241,7 @@ if ( -not [string]::IsNullOrEmpty($accountSpecialAttributes.ManagerUserPrincipal
     $managerIdentity.IdentityType = "UserPrincipalName"
     $managerIdentity.Value = $accountSpecialAttributes.ManagerUserPrincipalName
 
-    if (-not ($dR -eq $true)) {
+    if (-not ($dryRun -eq $true)) {
         try {
             Set-KPNBartUserManager -Identity $commandObjectIdentity -ManagerIdentity $managerIdentity
         } catch {
@@ -254,7 +253,7 @@ if ( -not [string]::IsNullOrEmpty($accountSpecialAttributes.ManagerUserPrincipal
 # Set persona
 
 if (-not [string]::IsNullOrEmpty($accountSpecialAttributes.Persona)) {
-    if (-not ($dR -eq $true)) {
+    if (-not ($dryRun -eq $true)) {
         try {
             Set-KPNBartUserPersona -Identity $commandObjectIdentity -Persona $accountSpecialAttributes.Persona
         } catch {

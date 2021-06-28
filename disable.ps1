@@ -1,6 +1,5 @@
 $aRef = $AccountReference | ConvertFrom-Json
 $config = ConvertFrom-Json $configuration
-$dR = $dryRun |  ConvertFrom-Json  
 $p = $person | ConvertFrom-Json
 $success = $true
 $auditLogs =[System.Collections.Generic.List[PSCustomObject]]::New()
@@ -29,7 +28,7 @@ else
     $commandObjectIdentity.Value =$aRef.UserPrincipalName
 }
 
-if (-not ($dR -eq $true)) {
+if (-not ($dryRun -eq $true)) {
     try {
         Disable-KPNBartUser  -Identity $commandObjectIdentity
     }
