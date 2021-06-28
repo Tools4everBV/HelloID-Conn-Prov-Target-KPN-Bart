@@ -41,10 +41,10 @@ The *HID-Conn-Prov-Target-KPN-Bart* needs to be **executed on-premises**. Make s
 | Setting                         | Description                                                  | Example                                                      |
 | ------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
 | Bart service URL                | Example:The url to the bart service endpoint to connect to   | https://<companyabbreviation>.bartws.local                   |
-| Username                        | The user name of the account with wich the HelloID provisioning agent connects to bart to perform all operations. | bart.web.service@<company>.local                             |
+| Username                        | The user name of the account with wich the HelloID provisioning agent connects to bart to perform all operations. | bart.web.service@company.nl                             |
 | Password                        | Password of the above connection account                     |                                                              |
 | Full path to KPN-Bart Powershel | The full path to the module *.psd1 file                      | D:\data\HelloID-Conn-Prov-Target-KPN-Bart\KPNBart\KPNBart.psd1 |
-| Default AD Domain               | The default domain in which to create new bart accounts.     | <Mydomain>.local                                             |
+| Default AD Domain               | The default domain in which to create new bart accounts.     | Mydomain.local                                             |
 
 ### PSModule
 
