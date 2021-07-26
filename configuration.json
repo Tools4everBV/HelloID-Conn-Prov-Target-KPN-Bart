@@ -1,53 +1,90 @@
 [
     {
-        "key": "url",
-        "type": "input",
-        "defaultValue": "",
-        "templateOptions": {
-            "label": "Bart service URL",
-            "placeholder": "https://<company abbreviation >.bartws.asp.local",
-            "required": true
-        }
+      "key": "url",
+      "type": "input",
+      "defaultValue": "",
+      "templateOptions": {
+        "label": "Bart service URL",
+        "placeholder": "https://<company abbreviation >.bartws.asp.local",
+        "required": true
+      }
     },
     {
-        "key": "username",
-        "type": "input",
-        "defaultValue": "",
-        "templateOptions": {
-            "label": "User name",
-            "placeholder": "Please enter user name",
-            "required": true
-        }
+      "key": "username",
+      "type": "input",
+      "defaultValue": "",
+      "templateOptions": {
+        "label": "User name",
+        "placeholder": "Please enter user name",
+        "required": true
+      }
     },
     {
-        "key": "password",
-        "type": "input",
-        "defaultValue": "",
-        "templateOptions": {
-            "label": "Password",
-            "type": "password",
-            "placeholder": "Please enter a password",
-            "required": true
-        }
+      "key": "password",
+      "type": "input",
+      "defaultValue": "",
+      "templateOptions": {
+        "label": "Password",
+        "type": "password",
+        "placeholder": "Please enter a password",
+        "required": true
+      }
     },
     {
-        "key": "moduleLocation",
-        "type": "input",
-        "defaultValue": "",
-        "templateOptions": {
-            "label": "Fullpath to KPN-Bart Powershell Module",
-            "placeholder": "D:\\data\\HelloID-Conn-Prov-Target-KPN-Bart\\KPNBart\\KPNBart.psd1",
-            "required": true
-        }
+      "key": "moduleLocation",
+      "type": "input",
+      "defaultValue": "",
+      "templateOptions": {
+        "label": "Full path to KPN-Bart Powershell Module",
+        "placeholder": "D:\\data\\HelloID-Conn-Prov-Target-KPN-Bart\\KPNBart\\KPNBart.psd1",
+        "required": true
+      }
     },
     {
-        "key": "defaultADDomain",
-        "type": "input",
-        "defaultValue": "",
-        "templateOptions": {
-            "label": "Default AD Domain",
-            "placeholder": "Please enter the default name",
-            "required": true
-        }
+      "key": "defaultADDomain",
+      "type": "input",
+      "defaultValue": "",
+      "templateOptions": {
+        "label": "Default AD Domain",
+        "placeholder": "Please enter the default name",
+        "required": true
+      }
+    },
+    {
+      "key": "emailAddressSuffix",
+      "type": "input",
+      "defaultValue": "",
+      "templateOptions": {
+        "label": "Default email address suffix",
+        "placeholder": "Please enter the email address suffix (customer.nl)",
+        "required": true
+      }
+    },
+    {
+      "key": "correlationPersonField",
+      "type": "input",
+      "defaultValue": "$p.ExternalId",
+      "templateOptions": {
+        "label": "Person Correlation Field",
+        "required": true
+      }
+    },
+    {
+      "key": "correlationAccountField",
+      "type": "input",
+      "defaultValue": "EmployeeId",
+      "templateOptions": {
+        "label": "Account Correlation Field",
+        "required": true
+      }
+    },
+    {
+      "key": "passwordLength",
+      "type": "input",
+      "defaultValue": "10",
+      "templateOptions": {
+        "label": "Password length",
+        "required": true
+      }
     }
-]
+  ]
