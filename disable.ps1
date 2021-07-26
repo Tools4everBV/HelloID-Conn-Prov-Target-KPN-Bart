@@ -1,7 +1,7 @@
 $aRef = $AccountReference | ConvertFrom-Json
 $config = ConvertFrom-Json $configuration
 $p = $person | ConvertFrom-Json
-$success = $true
+$success = $false
 $auditLogs =[System.Collections.Generic.List[PSCustomObject]]::New()
 
 try {
@@ -12,39 +12,36 @@ try {
 }
 
 #specify the identity of the object that must be disabled
-
 $commandObjectIdentity = [KPNBartConnectedServices.CommandService.ObjectIdentity]::new()
-if ( -not [string]::IsNullOrEmpty($aRef.ObjectGuid))
+if ( -not [string]::IsNullOrEmpty($aRef))
 {
     $commandObjectIdentity.IdentityType  = "guid"
     $commandObjectIdentity.Value = $aRef
-    $commandObjectIdentity.Value -replace '[{}]',''
+    if (-not ($dryRun -eq $true)) {
+        try {
+            Disable-KPNBartUser  -Identity $commandObjectIdentity
+            $success = $true
+        }
+        catch {
+            throw("Disable-KPNBartUser returned error $($_.Exception.Message)")     
+        }
+    }
+    
+    $auditMessage = "Kpn bart user disable for person " + $p.DisplayName + " succeeded"
+    $auditLogs.Add([PSCustomObject]@{ 
+        action  = "DisableAccount"
+        Message = $auditMessage
+        IsError = $false
+    })
 }
 else 
 {
-   # aRef not available....
+   # aRef not available.... not good or dryRun
+   #  TODO
 }
-
-if (-not ($dryRun -eq $true)) {
-    try {
-        Disable-KPNBartUser  -Identity $commandObjectIdentity
-    }
-    catch {
-        throw("Disable-KPNBartUser returned error $($_.Exception.Message)")     
-    }
-}
-
-$auditMessage = "Kpn bart user disable for person " + $p.DisplayName + " succeeded"
-$auditLogs.Add([PSCustomObject]@{ 
-    action  = "DisableAccount"
-    Message = $auditMessage
-    IsError = $false
-})
 
 $result = [PSCustomObject]@{ 
     Success       = $success
     Auditlogs     = $auditLogs
 }
 Write-Output $result | ConvertTo-Json -Depth 10
-
-
