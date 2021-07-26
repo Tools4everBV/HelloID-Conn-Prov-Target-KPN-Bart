@@ -1,10 +1,13 @@
-$aRef = $AccountReference | ConvertFrom-Json
-$config = ConvertFrom-Json $configuration
-$mRef = $managerAccountReference | ConvertFrom-Json 
 $p = $person | ConvertFrom-Json
+$aRef = $AccountReference | ConvertFrom-Json
+$mRef = $managerAccountReference | ConvertFrom-Json
+$config = $configuration | ConvertFrom-Json
+write-verbose -verbose "$AccountReference"
 $success = $true
 $auditLogs =[System.Collections.Generic.List[PSCustomObject]]::New()
+$dryRun = $false
 
+write-verbose -verbose [string]::IsNullOrEmpty($aRef)
 try {
     Import-Module $config.ModuleLocation -Force
     Initialize-KPNBartServiceClients -username $config.UserName -password $Config.password -BaseUrl $config.Url
@@ -12,82 +15,71 @@ try {
     throw("Initialize-KPNBartServiceClients failed with error: $($_.Exception.Message)")
 }
 
+write-verbose -verbose 3
+$account = @{
+        GivenName                   = $p.Name.NickName
+        SN                          = $p.Custom.KpnBartLastName
+        Initials                    = $p.Name.Initials         
+        DisplayName                 = $p.Custom.KpnBartDisplayName
+        managerObjectGuid           = $mRef                
+        Department                  = $p.PrimaryContract.Department.DisplayName
+        TelephoneNumber             = $p.contact.Business.phone.mobile         
+        OtherMobile                 = $p.contact.Personal.phone.mobile         
+        Title                       = $p.PrimaryContract.Title.Name 
+        ExtensionAttribute2         = $p.PrimaryContract.CostCenter.ExternalId
+}
+write-verbose -verbose 4
 #specify the identity of the object that must be updated
-
 $queryObjectIdentity = [KPNBartConnectedServices.QueryService.ObjectIdentity]::new()
-if ( -not [string]::IsNullOrEmpty($aRef.ObjectGuid))
-{
-    $queryObjectIdentity.IdentityType  = "guid"
-    $queryObjectIdentity.Value = $aRef.ObjectGuid
-    $queryObjectIdentity.Value -replace '[{}]',''
-}
-else 
-{
-    $queryObjectIdentity.IdentityType  = "UserPrincipalName"
-    $queryObjectIdentity.Value =$aRef.UserPrincipalName
-}
-
+$queryObjectIdentity.IdentityType  = "Guid"
+$queryObjectIdentity.Value = $aRef
+#$queryObjectIdentity.Value -replace '[{}]',''
+write-verbose -verbose 5
 $bulkObjectIdentity = [KPNBartConnectedServices.BulkCommandService.ObjectIdentity]::new()
 $bulkObjectIdentity.IdentityType = $queryObjectIdentity.IdentityType
 $bulkObjectIdentity.Value = $queryObjectIdentity.value
-
+write-verbose -verbose 6
 $commandObjectIdentity = [KPNBartConnectedServices.CommandService.ObjectIdentity]::new()
 $commandObjectIdentity.IdentityType = $queryObjectIdentity.IdentityType
 $commandObjectIdentity.Value = $queryObjectIdentity.Value
-
-
-[string] $newpassword = "testww_$($p.DisplayName)"
-$encryptedPassword = ConvertTo-SecureString $newpassword -Force -AsPlainText
-
-#specification of direct Ad attributes to update
-
-$accountUpdateAttributes = @{ 
-GivenName           = $p.Name.GivenName
-SN                  = $p.Name.FamilyName   
-Initials            = $p.Name.Initials
-#UserPrincipalName  = "$($p.Name.FamilyName)$($p.Name.GivenName)@lievegoed.nl"
-DisplayName         = $p.DisplayName   
-MiddleName          = $p.Name.FamilyNamePrefix 
-#SamAccountName     = "$($p.Name.FamilyName)$($p.Name.GivenName)"
-Info                = $p.Description
+write-verbose -verbose 7
+# Set attributes to retrieve
+$accountUpdateForAttributes = @()
+write-verbose -verbose 8
+ForEach ($key in $account.Keys) { $accountUpdateForAttributes += $key }
+write-verbose -verbose 9
+try {
+    [string[]]$ObjectAttributes = @($accountUpdateForAttributes)
+    $previousAccount = Get-KPNBartuser -Identity $queryObjectIdentity -Attributes $objectAttributes
+    Write-Verbose -Verbose ($previousAccount | ConvertTo-Json)
+} catch {
+    throw("Get-KPNBartuser failed with error: $($_.Exception.Message)")
 }
+write-verbose -verbose 10
+# Write-Verbose -Verbose ($previousAccount | ConvertTo-Json)
+# Write-Verbose -Verbose ($previousAccount.Count)
+# Define the accountUpdateAttributes array so it can be processed later on
+$accountUpdateAttributes = @()
+ForEach ($attribute in $account.GetEnumerator()) {
+    if ($attribute.value -ne $previousAccount.$($($attribute.Key))) {
+        Write-Verbose -Verbose "Update required for attribute '$($attribute.key)' (Current: '$($previousAccount.$($($attribute.Key))))', new: '$($attribute.value)')"
 
-#specification of attributes to update that require special actions
-
-$emailAliases =[System.Collections.Generic.List[string]]::New()
-$emailAliases.Add($p.Contact.Business.Email)
-$emailAliases.Add("$($p.Name.FamilyName)$($p.Name.GivenName)@test7.local")
-$emailAliases.Add("$($p.Name.FamilyName)$($p.Name.GivenName)@test8.local")
-
-$emailAliasesToRemove = [System.Collections.Generic.List[string]]::New()
-$emailAliasesToRemove.Add("$($p.Name.FamilyName)$($p.Name.GivenName)@test5.local")
-
-$accountSpecialAttributes = @{
-    Mail                                    = $p.Contact.Business.Email
-    Password                                = $encryptedPassword  
-    #UserType                               = "AD"       
-    #UserType                               = "User"
-    IsActive                                = $false 
-    ChangePasswordAtLogon                   = $true
-    UpdateExistingPasswordFlag              = $true
-    UpdateExchangeWhenSettingMailAttribute  = $true
-    EmailAliasesToAdd                       = $emailAliases
-    EmailAliasesToRemove                    = $emailAliasesToRemove
-    ManagerUserPrincipalName                = $mRef.UserPrincipalName
-    Persona                                 = "AD User"
+        # create new updateAttributes object
+        $accountUpdateAttributes += $attribute.key
+    }
 }
-$Account = $accountUpdateAttributes + $accountSpecialAttributes
 
 $CommandList = [System.Collections.Generic.List[KPNBartConnectedServices.BulkCommandService.ModifyADAttributeCommand]]::New()
-
 foreach ($keyValue in $accountUpdateAttributes.GetEnumerator())
 {
     $modifyCommand = [KPNBartConnectedServices.BulkCommandService.ModifyADAttributeCommand]::new()
     $modifyCommand.ObjectIdentity = $bulkObjectIdentity
     $modifyCommand.Attribute = $keyValue.Key
     $modifyCommand.Value = $keyValue.Value
-    $CommandList.add($modifyCommand)    
+    $CommandList.add($modifyCommand)
+    Write-Verbose -Verbose "Updating attribute '$($keyValue.Key)' to value '$($keyValue.Value)'"
 }
+
 if (-not ($dryRun -eq $true)) 
 {
     try {
@@ -101,7 +93,7 @@ if (-not ($dryRun -eq $true))
                     action  = "UpdateAccount"
                     Message = $auditMessage
                     IsError = $true
-                })            
+                })
             }
         }
     }
@@ -110,100 +102,86 @@ if (-not ($dryRun -eq $true))
    } 
 }
 
-# update the password 
-if (-not ($dryRun -eq $true)) {
+# Not used in this implementation
+# # Set aliases before setting primary 
+# might add this part to the account attribute
+# $emailAliases =[System.Collections.Generic.List[string]]::New()
+# $emailAliases.Add($p.Contact.Business.Email)
+# $emailAliases.Add("$($p.Name.FamilyName)$($p.Name.GivenName)@test7.local")
+# $emailAliases.Add("$($p.Name.FamilyName)$($p.Name.GivenName)@test8.local")
 
-    if ($accountSpecialAttributes.updateExistingPasswordFlag -eq $true){
-        try{
-            Set-KPNBartUserPassword -Identity $commandObjectIdentity  -Password $encryptedPassword
-        }
-        catch {
-            throw("Set-KPNBartUserPassword returned error $($_.Exception.Message)")     
-        }  
-    }             
-}
+# $emailAliasesToRemove = [System.Collections.Generic.List[string]]::New()
+# $emailAliasesToRemove.Add("$($p.Name.FamilyName)$($p.Name.GivenName)@test5.local")
 
-# Force user to change password at the next logon
-if (-not ($dryRun -eq $true)) {
+# if ($accountSpecialAttributes.UpdateExchangeWhenSettingMailAttribute -eq $true)
+# { 
+#     foreach ($emailAlias in $accountSpecialAttributes.EmailAliasesToAdd)
+#     {
+#         if (-not ($dryRun -eq $true)) {
+#             try{
+#                 New-KPNBartEmailAlias -Identity $commandObjectIdentity -EmailAddress $emailAlias              
+#             }
+#             catch {
+#                 throw("New-KPNBartEmailAlias returned error $($_.Exception.Message)")    
+#             }  
+#         }
+#    }
+# }    
 
-    if($accountSpecialAttributes.ChangePasswordAtLogon -eq $true) {
+# Not used in this implementation
+# # Set mail
+# if ( -not [string]::IsNullOrEmpty($accountSpecialAttributes.Mail))
+# {
+#     if ($accountSpecialAttributes.UpdateExchangeWhenSettingMailAttribute -eq $true)
+#     {
+#         if (-not ($dryRun -eq $true)) {
+#             try{
+#                 Set-KPNBartEmailPrimaryAddress -Identity $commandObjectIdentity -EmailAddress $accountSpecialAttributes.Mail            
+#             }
+#             catch {
+#                 throw("Set-KPNBartEmailPrimaryAddress returned error $($_.Exception.Message)")    
+#             }  
+#         }
 
-        try{
-            Set-KPNBartPasswordchangeAtNextLogon -Identity $commandObjectIdentity              
-        }
-        catch {
-            throw("Set-KPNBartPasswordchangeAtNextLogon returned error $($_.Exception.Message)")     
-        }  
-    }
-}
+#     }
+#     else
+#     {
+#         if (-not ($dryRun -eq $true)) {
+#             try{
+#                 Set-KPNBartEmailADAttribute -Identity $commandObjectIdentity -EmailAddress $accountSpecialAttributes.Mail            
+#             }
+#             catch {
+#                 throw("Set-KPNBartEmailADAttribute returned error $($_.Exception.Message)")   
+#             }  
+#         }        
+#     }
+# }
 
+# Not used in this implementation
+# # remove aliases after setting primary 
+# if ($accountSpecialAttributes.UpdateExchangeWhenSettingMailAttribute -eq $true)
+# { 
+#     foreach ($emailAlias in $accountSpecialAttributes.EmailAliasesToRemove)
+#     {
+#         if (-not ($dryRun -eq $true)) {
+#             try{
+#                 Remove-KPNBartEmailAlias -Identity $commandObjectIdentity -EmailAddress $emailAlias              
+#             }
+#             catch {
+#                 throw("Remove-KPNBartEmailAlias returned error $($_.Exception.Message)")  
+#             }  
+#         }
+#    }
+# }  
 
-# Set aliases before setting primary 
-if ($accountSpecialAttributes.UpdateExchangeWhenSettingMailAttribute -eq $true)
-{ 
-    foreach ($emailAlias in $accountSpecialAttributes.EmailAliasesToAdd)
-    {
-        if (-not ($dryRun -eq $true)) {
-            try{
-                New-KPNBartEmailAlias -Identity $commandObjectIdentity -EmailAddress $emailAlias              
-            }
-            catch {
-                throw("New-KPNBartEmailAlias returned error $($_.Exception.Message)")    
-            }  
-        }
-   }
-}    
-
-# Set mail
-if ( -not [string]::IsNullOrEmpty($accountSpecialAttributes.Mail))
-{
-    if ($accountSpecialAttributes.UpdateExchangeWhenSettingMailAttribute -eq $true)
-    {
-        if (-not ($dryRun -eq $true)) {
-            try{
-                Set-KPNBartEmailPrimaryAddress -Identity $commandObjectIdentity -EmailAddress $accountSpecialAttributes.Mail            
-            }
-            catch {
-                throw("Set-KPNBartEmailPrimaryAddress returned error $($_.Exception.Message)")    
-            }  
-        }
-
-    }
-    else
-    {
-        if (-not ($dryRun -eq $true)) {
-            try{
-                Set-KPNBartEmailADAttribute -Identity $commandObjectIdentity -EmailAddress $accountSpecialAttributes.Mail            
-            }
-            catch {
-                throw("Set-KPNBartEmailADAttribute returned error $($_.Exception.Message)")   
-            }  
-        }        
-    }
-}
-
-# remove aliases after setting primary 
-if ($accountSpecialAttributes.UpdateExchangeWhenSettingMailAttribute -eq $true)
-{ 
-    foreach ($emailAlias in $accountSpecialAttributes.EmailAliasesToRemove)
-    {
-        if (-not ($dryRun -eq $true)) {
-            try{
-                Remove-KPNBartEmailAlias -Identity $commandObjectIdentity -EmailAddress $emailAlias              
-            }
-            catch {
-                throw("Remove-KPNBartEmailAlias returned error $($_.Exception.Message)")  
-            }  
-        }
-   }
-}  
-
-# Set Manager
-if ( -not [string]::IsNullOrEmpty($accountSpecialAttributes.ManagerUserPrincipalName))
+# Set Manager 
+# TODO: Make manager empty when manager cannot be found. Otherwise an old manager cannot be removed. 
+# This only can be done after we went live.
+if ( -not [string]::IsNullOrEmpty($mRef.ManagerUserPrincipalName))
 {
     $managerIdentity = [KPNBartConnectedServices.CommandService.ObjectIdentity]::new()
-    $managerIdentity.IdentityType = "UserPrincipalName"
-    $managerIdentity.Value = $accountSpecialAttributes.ManagerUserPrincipalName
+    $managerIdentity.IdentityType = "Guid"
+    $managerIdentity.Value = $mRef
 
     if (-not ($dryRun -eq $true)) {
         try{
@@ -215,19 +193,19 @@ if ( -not [string]::IsNullOrEmpty($accountSpecialAttributes.ManagerUserPrincipal
     }
 }
 
-# Set persona
-
-if (-not [string]::IsNullOrEmpty($accountSpecialAttributes.Persona))
-{
-    if (-not ($dryRun -eq $true)) {
-        try{
-            Set-KPNBartUserPersona -Identity $commandObjectIdentity -Persona $accountSpecialAttributes.Persona          
-        }
-        catch {
-            throw("Set-KPNBartUserPersona returned error $($_.Exception.Message)")  
-        }  
-    }
-}
+#Not used in this implementation, persona is set once.
+# # Set persona
+# if (-not [string]::IsNullOrEmpty($accountSpecialAttributes.Persona))
+# {
+#     if (-not ($dryRun -eq $true)) {
+#         try{
+#             Set-KPNBartUserPersona -Identity $commandObjectIdentity -Persona $accountSpecialAttributes.Persona          
+#         }
+#         catch {
+#             throw("Set-KPNBartUserPersona returned error $($_.Exception.Message)")  
+#         }  
+#     }
+# }
 
 if ($success -eq $true) {
     $auditMessage = "user-update for person " + $p.DisplayName + " succeeded"
@@ -242,7 +220,7 @@ if ($success -eq $true) {
 $result = [PSCustomObject]@{ 
     Success       = $success  
     AuditLogs     = $auditLogs
-    Account       = $account 
+    Account       = $account
 }
 
 #send result back

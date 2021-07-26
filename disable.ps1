@@ -17,13 +17,12 @@ $commandObjectIdentity = [KPNBartConnectedServices.CommandService.ObjectIdentity
 if ( -not [string]::IsNullOrEmpty($aRef.ObjectGuid))
 {
     $commandObjectIdentity.IdentityType  = "guid"
-    $commandObjectIdentity.Value = $aRef.ObjectGuid
+    $commandObjectIdentity.Value = $aRef
     $commandObjectIdentity.Value -replace '[{}]',''
 }
 else 
 {
-    $commandObjectIdentity.IdentityType  = "UserPrincipalName"
-    $commandObjectIdentity.Value =$aRef.UserPrincipalName
+   # aRef not available....
 }
 
 if (-not ($dryRun -eq $true)) {
@@ -40,11 +39,11 @@ $auditLogs.Add([PSCustomObject]@{
     action  = "DisableAccount"
     Message = $auditMessage
     IsError = $false
-}) 
+})
 
 $result = [PSCustomObject]@{ 
-    Success       = $success  
-    Auditlogs     = $auditLogs  
+    Success       = $success
+    Auditlogs     = $auditLogs
 }
 Write-Output $result | ConvertTo-Json -Depth 10
 
