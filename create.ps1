@@ -656,7 +656,7 @@ if ($success -eq $true) {
                     })
                 } catch {
                     $success = $false   
-                    $auditMessage = "user-update for person " + $p.DisplayName + ". Update of manager failed with Error".    
+                    $auditMessage = "user-update for person " + $p.DisplayName + ". Update of manager failed with Error."
                     $auditLogs.Add([PSCustomObject]@{ 
                         action  = "CreateAccount"
                         Message = $auditMessage
