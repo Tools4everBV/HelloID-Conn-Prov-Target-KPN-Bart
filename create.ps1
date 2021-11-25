@@ -212,6 +212,49 @@ function Get-CorrelationResult {
     }
 }
 
+# Returns the objectguid of the user in case the user is known
+function Get-UPN {
+    [cmdletbinding()]
+    Param (
+        [string]$attribute,
+        [string]$value
+    )
+    Process {
+        try {
+            [string[]] $ObjectAttributes = @("ObjectGUID", "userPrincipalName", $attribute)
+            #write-verbose -verbose ($objectAttributes | ConvertTo-Json)
+            $userList = Get-KPNBartuser -Attributes $objectAttributes
+            #write-verbose -verbose ($userList | ConvertTo-Json)
+            $userFilter = $userList.Values.where({$_.Keys -eq $attribute -and $_.Values -eq $value})
+            #write-verbose -verbose ($userFilter | ConvertTo-Json)
+            return $userFilter.userPrincipalName
+        } catch {
+            throw("Get-KPNBartuser failed with error: $($_.Exception.Message)")
+        }
+    }
+}
+
+function Get-Mail {
+    [cmdletbinding()]
+    Param (
+        [string]$attribute,
+        [string]$value
+    )
+    Process {
+        try {
+            [string[]] $ObjectAttributes = @("ObjectGUID", "mail", $attribute)
+            #write-verbose -verbose ($objectAttributes | ConvertTo-Json)
+            $userList = Get-KPNBartuser -Attributes $objectAttributes
+            #write-verbose -verbose ($userList | ConvertTo-Json)
+            $userFilter = $userList.Values.where({$_.Keys -eq $attribute -and $_.Values -eq $value})
+            #write-verbose -verbose ($userFilter | ConvertTo-Json)
+            return $userFilter.mail
+        } catch {
+            throw("Get-KPNBartuser failed with error: $($_.Exception.Message)")
+        }
+    }
+}
+
 # Only works for DistinguishedName, Guid, SamAccountName, Sid, UserPrincipalName, MailAddress
 function Get-BartUserByIdentityType {
     [cmdletbinding()]
@@ -276,6 +319,12 @@ if ($success -eq $true) {
 
         # Correlate user
         Write-Verbose -Verbose -Message "Existing account found. Correlating person. (Using attribute '$correlationAccountField' and value '$correlationPersonField'. ObjectGuid: '$aRef')"
+
+	# Get original values for account object -> To-Do: make this 1 call for complete 'original account' 
+	# Generated UPN/Mail shouldn't be saved in account data, this can mess up external systems. Instead use original upn/mail.
+	
+        $account.userPrincipalName= Get-UPN @splat
+        $account.mail = Get-Mail @splat
 
         # First Get-User, set to previousAccount
         $queryObjectIdentity = [KPNBartConnectedServices.QueryService.ObjectIdentity]::new()
