@@ -193,6 +193,10 @@ if ( -not [string]::IsNullOrEmpty($mRef.ManagerUserPrincipalName))
     }
 }
 
+#Force 2FA Settings
+#$sam = Get-KPNBartuser -Identity $queryObjectIdentity -Attributes 'sAMAccountname'
+#set-KPNBartPushToAuthenticate -Identity $($sam.sAMAccountname) -Set $true
+
 #Not used in this implementation, persona is set once.
 # # Set persona
 # if (-not [string]::IsNullOrEmpty($accountSpecialAttributes.Persona))
