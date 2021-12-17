@@ -19,7 +19,7 @@ function Remove-KPNBartUser {
         $deleteEntityCommand = [KPNBartConnectedServices.CommandService.DeleteEntityCommand]::new()
         $deleteEntityCommand.EntityIdentity = $Identity
 
-        $null = $script:CommandService.Execute($deleteEntityCommand)       
+        $null = $script:CommandService.Execute($deleteEntityCommand)
     } catch {
         $PSCmdlet.ThrowTerminatingError($_)
     }
