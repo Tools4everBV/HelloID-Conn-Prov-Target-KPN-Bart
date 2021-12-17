@@ -2,75 +2,85 @@ $p = $person | ConvertFrom-Json
 $aRef = $AccountReference | ConvertFrom-Json
 $mRef = $managerAccountReference | ConvertFrom-Json
 $config = $configuration | ConvertFrom-Json
-write-verbose -verbose "$AccountReference"
 $success = $true
 $auditLogs =[System.Collections.Generic.List[PSCustomObject]]::New()
-$dryRun = $false
 
-write-verbose -verbose [string]::IsNullOrEmpty($aRef)
+
 try {
     Import-Module $config.ModuleLocation -Force
     Initialize-KPNBartServiceClients -username $config.UserName -password $Config.password -BaseUrl $config.Url
 } catch {
     throw("Initialize-KPNBartServiceClients failed with error: $($_.Exception.Message)")
 }
-
-write-verbose -verbose 3
+Write-verbose -verbose -message 2
 $account = @{
-        GivenName                   = $p.Name.NickName
-        SN                          = $p.Custom.KpnBartLastName
-        Initials                    = $p.Name.Initials         
-        DisplayName                 = $p.Custom.KpnBartDisplayName
-        managerObjectGuid           = $mRef                
+        #GivenName                   = $p.Name.NickName
+        #SN                          = $p.Custom.KpnBartLastName
+        #Initials                    = $p.Name.Initials
+        #DisplayName                 = $p.Custom.KpnBartDisplayName
+        managerObjectGuid           = $mRef
         Department                  = $p.PrimaryContract.Department.DisplayName
-        TelephoneNumber             = $p.contact.Business.phone.mobile         
-        OtherMobile                 = $p.contact.Personal.phone.mobile         
+        TelephoneNumber             = $p.contact.Business.phone.mobile
+        OtherMobile                 = $p.contact.Personal.phone.mobile
         Title                       = $p.PrimaryContract.Title.Name 
         ExtensionAttribute2         = $p.PrimaryContract.CostCenter.ExternalId
 }
-write-verbose -verbose 4
+Write-verbose -verbose -message 3
 #specify the identity of the object that must be updated
 $queryObjectIdentity = [KPNBartConnectedServices.QueryService.ObjectIdentity]::new()
 $queryObjectIdentity.IdentityType  = "Guid"
 $queryObjectIdentity.Value = $aRef
-#$queryObjectIdentity.Value -replace '[{}]',''
-write-verbose -verbose 5
+
 $bulkObjectIdentity = [KPNBartConnectedServices.BulkCommandService.ObjectIdentity]::new()
 $bulkObjectIdentity.IdentityType = $queryObjectIdentity.IdentityType
 $bulkObjectIdentity.Value = $queryObjectIdentity.value
-write-verbose -verbose 6
+
 $commandObjectIdentity = [KPNBartConnectedServices.CommandService.ObjectIdentity]::new()
 $commandObjectIdentity.IdentityType = $queryObjectIdentity.IdentityType
 $commandObjectIdentity.Value = $queryObjectIdentity.Value
-write-verbose -verbose 7
+
 # Set attributes to retrieve
 $accountUpdateForAttributes = @()
-write-verbose -verbose 8
+
 ForEach ($key in $account.Keys) { $accountUpdateForAttributes += $key }
-write-verbose -verbose 9
+
 try {
     [string[]]$ObjectAttributes = @($accountUpdateForAttributes)
     $previousAccount = Get-KPNBartuser -Identity $queryObjectIdentity -Attributes $objectAttributes
-    Write-Verbose -Verbose ($previousAccount | ConvertTo-Json)
+    #Write-Verbose -Verbose ($previousAccount | ConvertTo-Json)
 } catch {
-    throw("Get-KPNBartuser failed with error: $($_.Exception.Message)")
+    $auditMessage = "Get-KPNBartuser failed with error: $($_.Exception.Message)"
+    Write-Verbose -Verbose -Message $auditMessage
+    throw($auditMessage)
 }
-write-verbose -verbose 10
-# Write-Verbose -Verbose ($previousAccount | ConvertTo-Json)
-# Write-Verbose -Verbose ($previousAccount.Count)
-# Define the accountUpdateAttributes array so it can be processed later on
+
 $accountUpdateAttributes = @()
 ForEach ($attribute in $account.GetEnumerator()) {
-    if ($attribute.value -ne $previousAccount.$($($attribute.Key))) {
-        Write-Verbose -Verbose "Update required for attribute '$($attribute.key)' (Current: '$($previousAccount.$($($attribute.Key))))', new: '$($attribute.value)')"
+    if ([string]$attribute.value -ne [string]$previousAccount.$($($attribute.Key)) -and $attribute.key -ne 'managerObjectGuid') {
+        
+        Write-Verbose -Verbose "Update required for attribute '$($attribute.key)' (Current: '$($previousAccount.$($($attribute.Key)))', new: '$($attribute.value)')"
 
         # create new updateAttributes object
         $accountUpdateAttributes += $attribute.key
     }
 }
+Write-verbose -verbose -message 4
+try {
+    $previousAccountManager = Get-KPNBartUserManager -Identity $queryObjectIdentity 
+    #write-verbose -verbose ($previousAccountManager | ConvertTo-Json)
+} catch {
+    throw("Get-KPNBartUserManager failed with error: $($_.Exception.Message)")
+}
+Write-verbose -verbose -message 5
+$accountUpdate = @{}    
+ForEach ($key in $account.Keys) {
+    if ($accountUpdateAttributes.contains($key)) {
+        $accountUpdate.Add($key,$account[$key])
+    }
+}
 
 $CommandList = [System.Collections.Generic.List[KPNBartConnectedServices.BulkCommandService.ModifyADAttributeCommand]]::New()
-foreach ($keyValue in $accountUpdateAttributes.GetEnumerator())
+foreach ($keyValue in $accountUpdate.GetEnumerator())
 {
     $modifyCommand = [KPNBartConnectedServices.BulkCommandService.ModifyADAttributeCommand]::new()
     $modifyCommand.ObjectIdentity = $bulkObjectIdentity
@@ -83,22 +93,26 @@ foreach ($keyValue in $accountUpdateAttributes.GetEnumerator())
 if (-not ($dryRun -eq $true)) 
 {
     try {
-        $UpdateResults = Set-KPNBartUserAttributeMultiple -CommandList $CommandList
+		if ($CommandList.count -ne 0) {
+			$UpdateResults = Set-KPNBartUserAttributeMultiple -CommandList $CommandList
 
-        foreach ($Result in $UpdateResults){
-            if(-not $Result.error -eq $false)  {
-                $success = $false   
-                $auditMessage = "user-update for person " + $p.DisplayName + ". Update of specific attribute failed with Error: " + $Result.Message     
-                $auditLogs.Add([PSCustomObject]@{ 
-                    action  = "UpdateAccount"
-                    Message = $auditMessage
-                    IsError = $true
-                })
-            }
-        }
-    }
-   catch {
-    throw("Set-KPNBartUserAttributeMultiple returned error $($_.Exception.Message)")     
+			foreach ($Result in $UpdateResults){
+				if(-not $Result.error -eq $false)  {
+				    $success = $false   
+                    $auditMessage = "user-create for person  $($p.DisplayName). Update of specific attribute failed with Error:  '$($Result.command.attribute)' to value '$($Result.command.value)'. Error: $($Result.Message)"
+					Write-Verbose -Verbose $auditMessage										
+					$auditLogs.Add([PSCustomObject]@{ 
+						action  = "UpdateAccount"
+						Message = $auditMessage
+						IsError = $true
+					})
+				}
+			}
+		}
+    } catch {
+        $auditMessage = "Set-KPNBartUserAttributeMultiple returned error $($_.Exception.Message)"
+        Write-Verbose -Verbose -Message $auditMessage
+        throw($auditMessage)
    } 
 }
 
@@ -173,30 +187,54 @@ if (-not ($dryRun -eq $true))
 #         }
 #    }
 # }  
+Write-verbose -verbose -message 7
+# Set Manager
+if ( -not [string]::IsNullOrEmpty($mRef)) {
+    Write-verbose -verbose -message "8.1"
+    write-verbose -verbose ($previousAccountManager| ConvertTo-Json)
+    if ($previousAccountManager.ObjectGuid -ne $mRef) {
+        $managerIdentity = [KPNBartConnectedServices.CommandService.ObjectIdentity]::new()
+        $managerIdentity.IdentityType = "Guid"
+        $managerIdentity.Value = $mRef
 
-# Set Manager 
-# TODO: Make manager empty when manager cannot be found. Otherwise an old manager cannot be removed. 
-# This only can be done after we went live.
-if ( -not [string]::IsNullOrEmpty($mRef.ManagerUserPrincipalName))
-{
-    $managerIdentity = [KPNBartConnectedServices.CommandService.ObjectIdentity]::new()
-    $managerIdentity.IdentityType = "Guid"
-    $managerIdentity.Value = $mRef
-
-    if (-not ($dryRun -eq $true)) {
-        try{
-            Set-KPNBartUserManager -Identity $commandObjectIdentity -ManagerIdentity $managerIdentity           
+        if (-not ($dryRun -eq $true)) {
+            try {
+                Set-KPNBartUserManager -Identity $commandObjectIdentity -ManagerIdentity $managerIdentity
+                $auditMessage = "user-update for person " + $p.DisplayName + ". Manager update succesful."     
+                Write-Verbose -Verbose $auditMessage
+                $auditLogs.Add([PSCustomObject]@{ 
+                    action  = "UpdateAccount"
+                    Message = $auditMessage
+                    IsError = $false
+                })
+            } catch {
+                $success = $false
+                $auditMessage = "user-create for person " + $p.DisplayName + ". Update of manager failed with Error: $($_.Exception.Message)".
+                $auditLogs.Add([PSCustomObject]@{ 
+                    action  = "UpdateAccount"
+                    Message = $auditMessage
+                    IsError = $true
+                })
+                $auditMessage = "Set-KPNBartUserManager returned error $($_.Exception.Message)"
+                Write-Verbose -Verbose -Message $auditMessage
+                throw($auditMessage)
+            }
+        } else {
+            Write-Verbose -Verbose -Message "dryRun: Setting manager"
         }
-        catch {
-            throw("Set-KPNBartUserManager returned error $($_.Exception.Message)")  
-        }  
+    } else {
+        Write-Verbose -Verbose -Message "Manager already configured correctly. Update not required."
     }
+} else {
+    #$success = $false
+    $auditMessage = "user-update for person " + $p.DisplayName + ". Update of manager failed with Error: Manager is empty"
+    Write-Verbose -Verbose -Message $auditMessage
+    $auditLogs.Add([PSCustomObject]@{ 
+        action  = "UpdateAccount"
+        Message = $auditMessage
+        IsError = $true
+    })
 }
-
-#Force 2FA Settings
-#$sam = Get-KPNBartuser -Identity $queryObjectIdentity -Attributes 'sAMAccountname'
-#set-KPNBartPushToAuthenticate -Identity $($sam.sAMAccountname) -Set $true
-
 #Not used in this implementation, persona is set once.
 # # Set persona
 # if (-not [string]::IsNullOrEmpty($accountSpecialAttributes.Persona))
