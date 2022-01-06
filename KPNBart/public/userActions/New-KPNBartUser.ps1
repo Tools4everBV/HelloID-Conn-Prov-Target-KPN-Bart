@@ -55,11 +55,14 @@ function New-KPNBartUser {
     )
 
     try {
+        $BSTR = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($Password)
+        $plainPassword = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR)
+
         $createUserCommand = [KPNBartConnectedServices.CommandService.CreateUserCommand]::new()
         $createUserCommand.FirstName = $FirstName
         $createUserCommand.LastName = $LastName
         $createUserCommand.Initials = $Initials
-        $createUserCommand.Password = $Password
+        $createUserCommand.Password = $plainPassword
         $createUserCommand.UserPrincipalName = $UserPrincipalName
         $createUserCommand.MiddleName = $MiddleName
         $createUserCommand.SamAccountName = $SamAccountName

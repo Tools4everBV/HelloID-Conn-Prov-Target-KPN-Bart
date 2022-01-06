@@ -4,7 +4,6 @@ $mRef = $managerAccountReference | ConvertFrom-Json
 $auditLogs = [System.Collections.Generic.List[PSCustomObject]]::New()
 $success = $true
 
-
 #samaccountname generation
 # 1. <First Name (initial)><Last name prefix><Last Name>(e.g jwilliams)
 # 2. <First Name>.<last name prefix><Last Name> (e.g john.williams2)
@@ -71,7 +70,7 @@ function New-PrimaryEmail {
             #Check Nickname
             if([string]::IsNullOrEmpty($p.Name.Nickname)) { $tempFirstName = $p.Name.GivenName } else { $tempFirstName = $p.Name.Nickname }
             $tempFirstName = $tempFirstName -Replace ' ',''
-           
+
             switch ($Iteration) {
                 0 {
                     $tempFirstName = $tempFirstName.substring(0,1)
@@ -86,7 +85,7 @@ function New-PrimaryEmail {
                     $suffix = "$($Iteration+1)"
                 }
             }
-        
+
             if([string]::IsNullOrEmpty($p.Name.FamilyNamePrefix)) { $tempLastNamePrefix = "" } else { $tempLastNamePrefix = $p.Name.FamilyNamePrefix }
             $tempLastName = $p.Name.FamilyName        
             $tempUsername = $tempFirstName + $tempLastNamePrefix + $tempLastName
@@ -141,13 +140,13 @@ $samAccountName = New-SamAccountName -person $p -Iteration 0
         #Info                       = ""                        # Niet gebruiken
         # location                                              # streetAddress..., hoeft niet.
         # division                  -                           # Niet nodig
-        # startdate                                
+        # startdate
 
 $account = @{
         mail                        = $mail
         GivenName                   = $p.Name.NickName
         SN                          = $p.Custom.KpnBartLastName
-        Initials                    = $p.Name.Initials         
+        Initials                    = $p.Name.Initials
         Password                    = $clearTextPassword
         BartPassword                = $BartPassword
         UserPrincipalName           = $userPrincipalName
@@ -155,7 +154,7 @@ $account = @{
         SamAccountName              = $samAccountName
         IsActive                    = $false
         ChangePasswordAtLogon       = $true
-        UpdateExchangeWhenSettingMailAttribute = $false 
+        UpdateExchangeWhenSettingMailAttribute = $false
         managerObjectGuid           = $mRef
         Persona                     = "Portal Werkplek + E1"
         EmployeeId                  = $p.ExternalId
@@ -322,7 +321,7 @@ if ($success -eq $true) {
 
 	# Get original values for account object -> To-Do: make this 1 call for complete 'original account' 
 	# Generated UPN/Mail shouldn't be saved in account data, this can mess up external systems. Instead use original upn/mail.
-	
+
         $account.userPrincipalName= Get-UPN @splat
         $account.mail = Get-Mail @splat
 
@@ -382,7 +381,7 @@ if ($success -eq $true) {
             try {
                 #Username, email Generation
                 $maxUsernameIterations = 20
-                
+
                 $Iterator = 0
                 do {
                     #SamAccountName check
@@ -391,7 +390,7 @@ if ($success -eq $true) {
                         value = $account.SamAccountName
                     }
                     $exists = Get-BartUserByIdentityType @splat
-                    
+
                     if ($exists -eq $false) {
                         # Mail check
                         $splat = @{
@@ -399,7 +398,7 @@ if ($success -eq $true) {
                             value = $account.mail
                         }
                         $exists = Get-BartUserByIdentityType @splat
-                    
+
                         if ($exists -eq $false) {
                             # UPN check
                             $splat = @{
@@ -457,13 +456,13 @@ if ($success -eq $true) {
                     # Weet niet zeker of het onderstaande goed werkt - moet dit nog testen.
                     if ($createResult.Error -eq $true) {
                         $auditMessage = "KPN Bart user create for person " + $p.DisplayName + " failed"
-                        
+
                         $auditLogs.Add([PSCustomObject]@{
                                 action  = "CreateAccount"
                                 Message = $auditMessage
                                 IsError = $true
                             })
-                    }        
+                    }
                 } catch {
                 #throw("Could not run New-KPNBartUser, $($_.Exception.Message)")
                 $success = $false
@@ -482,7 +481,7 @@ if ($success -eq $true) {
                         value = $account.UserPrincipalName
                     }
                     $createdUser = Get-BartUserByIdentityType @splat
-                    
+
                     if (-not ($null -eq $createdUser)) {
                         $aRef = $createdUser.objectGuid
                         $auditMessage = "Kpn Bart user create for person " + $p.DisplayName + " succeeded. (objectGuid: $aRef)"
@@ -704,7 +703,7 @@ if ($success -eq $true) {
                         IsError = $false
                     })
                 } catch {
-                    $success = $false   
+                    $success = $false
                     $auditMessage = "user-update for person " + $p.DisplayName + ". Update of manager failed with Error."
                     $auditLogs.Add([PSCustomObject]@{ 
                         action  = "CreateAccount"
