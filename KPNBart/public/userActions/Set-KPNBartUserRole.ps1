@@ -17,7 +17,8 @@ function Set-KPNBartUserRole {
         [String]
         $RoleName,
 
-        [String]
+        #[String]
+        [KPNBartConnectedServices.CommandService.ObjectIdentity]
         $Identity
     )
 
