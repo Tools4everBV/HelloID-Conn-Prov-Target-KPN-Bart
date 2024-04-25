@@ -171,7 +171,7 @@ if ( -not [string]::IsNullOrEmpty($mRef)) {
     }
 } else {
     #$success = $false
-    $auditMessage = "user-update for person " + $p.DisplayName + ". Update of manager failed with Error: Manager is empty".    
+    $auditMessage = "user-update for person " + $p.DisplayName + ". Update of manager failed with Error: Manager is empty."    
     $auditLogs.Add([PSCustomObject]@{ 
         action  = "EnableAccount"
         Message = $auditMessage
