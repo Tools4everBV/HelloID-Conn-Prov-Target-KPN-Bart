@@ -1,14 +1,15 @@
-#################################################
-# HelloID-Conn-Prov-Target-KPN-BART-Enable
+################################################################
+# HelloID-Conn-Prov-Target-KPN-BART-GrantPermission-FunctionGroup
 # PowerShell V2
-#################################################
+################################################################
 
 # Enable TLS1.2
 [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
 
+# Begin
 try {
     # Verify if [aRef] has a value
-    if ([string]::IsNullOrEmpty($($actionContext.References.Account))) {
+    if ([string]::IsNullOrEmpty($($actionContext.References.Account.id))) {
         throw 'The account reference could not be found'
     }
 
@@ -17,19 +18,17 @@ try {
     Initialize-KPNBartServiceClients -Username $actionContext.Configuration.UserName -Password $actionContext.Configuration.password -BaseUrl $actionContext.Configuration.BaseUrl
 
     Write-Information "Verifying if a KPN-BART account for [$($personContext.Person.DisplayName)] exists"
-
     $queryObjectIdentity = [KPNBartConnectedServices.QueryService.ObjectIdentity]::new()
     $queryObjectIdentity.IdentityType = 'Guid'
     $queryObjectIdentity.Value = $actionContext.References.Account.id
-
-    $correlatedAccount = Get-KPNBartUserIsActive -Identity $queryObjectIdentity
+    $correlatedAccount = Get-KPNBartUser -Identity $queryObjectIdentity -Attributes  ([string[]]($actionContext.Data.PSObject.Properties.name))
 
     if ($null -ne $correlatedAccount) {
-        $action = 'EnableAccount'
-        $dryRunMessage = "Enable KPN-BART account: [$($actionContext.References.Account)] for person: [$($personContext.Person.DisplayName)] will be executed during enforcement"
+        $action = 'GrantPermission'
+        $dryRunMessage = "Grant KPN-BART permission: [$($actionContext.References.Permission.DisplayName)] will be executed during enforcement"
     } else {
         $action = 'NotFound'
-        $dryRunMessage = "KPN-BART account: [$($actionContext.References.Account)] for person: [$($personContext.Person.DisplayName)] could not be found, possibly indicating that it could be deleted, or the account is not correlated"
+        $dryRunMessage = "KPN-BART account: [$($actionContext.References.Account.id)] for person: [$($personContext.Person.DisplayName)] could not be found, possibly indicating that it could be deleted, or the account is not correlated"
     }
 
     # Add a message and the result of each of the validations showing what will happen during enforcement
@@ -40,27 +39,33 @@ try {
     # Process
     if (-not($actionContext.DryRun -eq $true)) {
         switch ($action) {
-            'EnableAccount' {
-                Write-Information "Enabling KPN-BART account with accountReference: [$($actionContext.References.Account)]"
+            'GrantPermission' {
+                Write-Information "Granting KPN-BART permission: [$($actionContext.References.Permission.DisplayName)] - [$($actionContext.References.Permission.Reference)]"
 
-                $commandObjectIdentity = [KPNBartConnectedServices.CommandService.ObjectIdentity]::new()
-                $commandObjectIdentity.IdentityType = $queryObjectIdentity.IdentityType
-                $commandObjectIdentity.Value = $queryObjectIdentity.Value
+                $userIdentity = [KPNBartConnectedServices.CommandService.ObjectIdentity]::new()
+                if (![string]::IsNullOrEmpty($correlatedAccount.ObjectGUID)) {
+                    $userIdentity.IdentityType = 'guid'
+                    $userIdentity.Value = $correlatedAccount.ObjectGUID
+                }
 
-                Enable-KPNBartUser  -Identity $commandObjectIdentity
+                $resourceIdentity = [KPNBartConnectedServices.CommandService.ObjectIdentity]::new()
+                $resourceIdentity.IdentityType = 'guid'
+                $resourceIdentity.Value = "$($actionContext.References.Permission.Reference)"
+                $ResourceAuthorization = [KPNBartConnectedServices.CommandService.ResourceAuthorizationEnum]::Access
+
+                Set-KPNBartResourceAccess -ResourceAuthorization $ResourceAuthorization -Identity $userIdentity -Add $true -ResourceIdentity $resourceIdentity
 
                 $outputContext.Success = $true
                 $outputContext.AuditLogs.Add([PSCustomObject]@{
-                        Message = 'Enable account was successful'
+                        Message = "Grant permission [$($actionContext.References.Permission.DisplayName)] was successful"
                         IsError = $false
                     })
-                break
             }
 
             'NotFound' {
-                $outputContext.Success = $false
+                $outputContext.Success  = $false
                 $outputContext.AuditLogs.Add([PSCustomObject]@{
-                        Message = "KPN-BART account: [$($actionContext.References.Account)] for person: [$($personContext.Person.DisplayName)] could not be found, possibly indicating that it could be deleted, or the account is not correlated"
+                        Message = "KPN-BART account: [$($actionContext.References.Account.id)] for person: [$($personContext.Person.DisplayName)] could not be found, possibly indicating that it could be deleted, or the account is not correlated"
                         IsError = $true
                     })
                 break

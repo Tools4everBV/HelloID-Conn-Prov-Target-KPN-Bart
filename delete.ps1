@@ -1,98 +1,85 @@
-$config = ConvertFrom-Json $configuration
-$p = $person | ConvertFrom-Json
-$aRef = $AccountReference | ConvertFrom-Json
-$success = $false
-$auditLogs =[System.Collections.Generic.List[PSCustomObject]]::New()
+##################################################
+# HelloID-Conn-Prov-Target-KPN-BART-Delete
+# PowerShell V2
+##################################################
+
+# Enable TLS1.2
+[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
 
 try {
-    Import-Module $config.ModuleLocation -Force
-    Initialize-KPNBartServiceClients -username $config.UserName -password $Config.password -BaseUrl $config.Url
-} catch {
-    throw("Initialize-KPNBartServiceClients failed with error: $($_.Exception.Message)")
-}
-
-#specify the identity of the object that must be deleted
-if ( -not [string]::IsNullOrEmpty($aRef)) {
-    $queryObjectIdentity = [KPNBartConnectedServices.QueryService.ObjectIdentity]::new()
-    $queryObjectIdentity.IdentityType  = "Guid"
-    $queryObjectIdentity.Value = $aRef
-
-    
-    # test with isactive
-    try {
-        [string[]]$ObjectAttributes = @("Guid","DistinguishedName")
-        $previousAccount = Get-KPNBartUserIsActive -Identity $queryObjectIdentity
-        $exists = $true
-    } catch {
-        if ($_.Exception.message -like ' does not exist') 
-        { 
-            # error message when user doesn't exist:
-            # 2021-09-01 13:05:05,209 [85] [20640206-0968-4972-a3be-a90fd4023011] INFO  HelloID.Provisioning.Agent.PowershellSessionManagement.PowershellSession - [eed83db6-460b-4043-acd4-73f2fbd79cc0] Get-KPNBartUserIsActive failed with error: Exception calling "Execute" with "1" argument(s): "the specified searchRoot '<GUID=29000d0e-fb45-442a-a831-05c6afc1203c>' does not exist"
-            $auditMessage = "Account doesn't exist anymore. Deleting account data from database"
-            write-verbose -verbose $auditMessage
-            $auditLogs.Add([PSCustomObject]@{ 
-                    action  = "DeleteAccount"
-                    Message = $auditMessage
-                    IsError = $false
-                }) 
-            $exists = $false
-            $success = $true
-        } else {
-            $auditMessage = "Get-KPNBartUserIsActive failed with error: $($_.Exception.Message)"
-            write-verbose -verbose $auditMessage
-            $auditLogs.Add([PSCustomObject]@{ 
-                    action  = "DeleteAccount"
-                    Message = $auditMessage
-                    IsError = $true
-                }) 
-        }
+    # Verify if [aRef] has a value
+    if ([string]::IsNullOrEmpty($($actionContext.References.Account))) {
+        throw 'The account reference could not be found'
     }
 
-    if ($exists -eq $true) {
-        if (-not ($dryRun -eq $true)) {
-            try {
+    Write-Information "Import module $($actionContext.Configuration.ModuleLocation) and initialize KPN WSDL Services"
+    Import-Module $actionContext.Configuration.ModuleLocation -Force
+    Initialize-KPNBartServiceClients -Username $actionContext.Configuration.UserName -Password $actionContext.Configuration.password -BaseUrl $actionContext.Configuration.BaseUrl
+
+    Write-Information "Verifying if a KPN-BART account for [$($personContext.Person.DisplayName)] exists"
+
+    $queryObjectIdentity = [KPNBartConnectedServices.QueryService.ObjectIdentity]::new()
+    $queryObjectIdentity.IdentityType = 'Guid'
+    $queryObjectIdentity.Value = $actionContext.References.Account.id
+
+    $correlatedAccount = Get-KPNBartUserIsActive -Identity $queryObjectIdentity
+
+    if ($null -ne $correlatedAccount) {
+        $action = 'DeleteAccount'
+        $dryRunMessage = "Delete KPN-BART account: [$($actionContext.References.Account)] for person: [$($personContext.Person.DisplayName)] will be executed during enforcement"
+    } else {
+        $action = 'NotFound'
+        $dryRunMessage = "KPN-BART account: [$($actionContext.References.Account)] for person: [$($personContext.Person.DisplayName)] could not be found, possibly indicating that it could be deleted, or the account is not correlated"
+    }
+
+    # Add a message and the result of each of the validations showing what will happen during enforcement
+    if ($actionContext.DryRun -eq $true) {
+        Write-Information "[DryRun] $dryRunMessage"
+    }
+
+    # Process
+    if (-not($actionContext.DryRun -eq $true)) {
+        switch ($action) {
+            'DeleteAccount' {
+                Write-Information "Deleting KPN-BART account with accountReference: [$($actionContext.References.Account)]"
+
                 $commandObjectIdentity = [KPNBartConnectedServices.CommandService.ObjectIdentity]::new()
                 $commandObjectIdentity.IdentityType = $queryObjectIdentity.IdentityType
                 $commandObjectIdentity.Value = $queryObjectIdentity.Value
                 Remove-KPNBartUser -Identity $commandObjectIdentity
 
-                $auditMessage = "Kpn bart user delete for person " + $p.DisplayName + " succeeded"
-                $auditLogs.Add([PSCustomObject]@{ 
-                    action  = "DeleteAccount"
-                    Message = $auditMessage
-                    IsError = $false
-                }) 
-                $success = $true
-
-            } catch {
-                throw("Remove-KPNBartUser returned error $($_.Exception.Message)")
+                $outputContext.Success = $true
+                $outputContext.AuditLogs.Add([PSCustomObject]@{
+                        Message = 'Delete account was successful'
+                        IsError = $false
+                    })
+                break
             }
-        } else {
-            Write-Verbose -Verbose "Not processing delete as dryRun is True"
-        }  
-    } else {
-        $auditMessage = "Account with reference '$aRef' cannot be found. Cannot delete account in KPN Bart, but removing the account from the HelloID database."
-        $auditLogs.Add([PSCustomObject]@{ 
-            action  = "DeleteAccount"
-            Message = $auditMessage
-            IsError = $false
-        }) 
-        $success = $true
+
+            'NotFound' {
+                $outputContext.Success = $true
+                $outputContext.AuditLogs.Add([PSCustomObject]@{
+                        Message = "KPN-BART account: [$($actionContext.References.Account)] for person: [$($personContext.Person.DisplayName)] could not be found, possibly indicating that it could be deleted, or the account is not correlated"
+                        IsError = $false
+                    })
+                break
+            }
+        }
     }
-} else {
-    $auditMessage = "aRef is empty, cannot delete account in KPN Bart, but removing the account from the HelloID database."
-    Write-Verbose -Verbose $auditMessage
-    $auditLogs.Add([PSCustomObject]@{ 
-        action  = "DeleteAccount"
-        Message = $auditMessage
-        IsError = $false
-    }) 
-    $success = $true
-}
+} catch {
+    $outputContext.success = $false
+    $ex = $PSItem
 
-$result = [PSCustomObject]@{ 
-    Success             = $success
-    Auditlogs           = $auditLogs
-}
+    # TEMP code
+    Write-Warning "$($ex.Exception.message)"
+    Write-Warning "$($ex.Exception.InnerException.message)"
+    Write-Warning "$($ex.Exception.InnerException.InnerException.message)"
 
-Write-Output $result | ConvertTo-Json -Depth 10
+    $auditMessage = "Could not create or correlate KPN-Bart account. Error: $($ex.Exception.Message)"
+    Write-Warning "Error at Line '$($ex.InvocationInfo.ScriptLineNumber)': $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
+
+    $outputContext.AuditLogs.Add([PSCustomObject]@{
+            Message = $auditMessage
+            IsError = $true
+        })
+}

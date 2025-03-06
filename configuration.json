@@ -1,10 +1,10 @@
 [
   {
-    "key": "url",
+    "key": "baseUrl",
     "type": "input",
     "defaultValue": "",
     "templateOptions": {
-      "label": "Bart service URL",
+      "label": "Bart service base URL",
       "placeholder": "https://<company abbreviation >.bartws.asp.local",
       "required": true
     }
@@ -58,42 +58,6 @@
       "label": "Default email address suffix",
       "placeholder": "Please enter the email address suffix (customer.nl)",
       "required": true
-    }
-  },
-  {
-    "key": "correlationPersonField",
-    "type": "input",
-    "defaultValue": "$p.ExternalId",
-    "templateOptions": {
-      "label": "Person Correlation Field",
-      "required": true
-    }
-  },
-  {
-    "key": "correlationAccountField",
-    "type": "input",
-    "defaultValue": "EmployeeId",
-    "templateOptions": {
-      "label": "Account Correlation Field",
-      "required": true
-    }
-  },
-  {
-    "key": "passwordLength",
-    "type": "input",
-    "defaultValue": "10",
-    "templateOptions": {
-      "label": "Password length",
-      "required": true
-    }
-  },
-  {
-    "key": "blockAccountCreation",
-    "type": "checkbox",
-    "defaultValue": false,
-    "templateOptions": {
-      "label": "Do not create new accounts, only correlate",
-      "required": false
     }
   }
 ]
