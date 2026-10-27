@@ -16,7 +16,7 @@ All notable changes to this project will be documented in this file. The format 
 ### Changed
 
 - `create.ps1`: newly created accounts are disabled directly after creation. Enabling is only done by `enable.ps1`. Correlated (existing) accounts keep their current state.
-- `update.ps1`: persona is only set when the account does not have it yet. The persona name is resolved case-insensitively against the BART persona list.
+- `update.ps1`: persona is only set when the account does not have it yet. The persona name is matched against the BART persona list after trimming whitespace; BART persona names are case-sensitive.
 - `enable.ps1`, `disable.ps1`, `delete.ps1`: validate `References.Account.Id`, log the account Id instead of the full reference object, skip enable/disable when the account already has the desired state, treat "not found" on disable/delete as success, set `Success` during dry run and report action-specific error messages including inner exceptions.
 
 ### Fixed
