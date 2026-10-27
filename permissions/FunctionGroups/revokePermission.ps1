@@ -18,18 +18,8 @@ try {
     Initialize-KPNBartServiceClients -Username $actionContext.Configuration.UserName -Password $actionContext.Configuration.password -BaseUrl $actionContext.Configuration.BaseUrl
 
     Write-Information "Verifying if a KPN-BART account for [$($personContext.Person.DisplayName)] exists"
-    $queryObjectIdentity = [KPNBartConnectedServices.QueryService.ObjectIdentity]::new()
-    $queryObjectIdentity.IdentityType = 'Guid'
-    $queryObjectIdentity.Value = $actionContext.References.Account.id
-    $correlatedAccount = Get-KPNBartUser -Identity $queryObjectIdentity -Attributes  ([string[]]($actionContext.Data.PSObject.Properties.name))
-
-    if ($null -ne $correlatedAccount) {
-        $action = 'RevokePermission'
-        $dryRunMessage = "Revoke KPN-BART permission: [$($actionContext.References.Permission.DisplayName)] will be executed during enforcement"
-    } else {
-        $action = 'NotFound'
-        $dryRunMessage = "KPN-BART account: [$($actionContext.References.Account.id)] for person: [$($personContext.Person.DisplayName)] could not be found, possibly indicating that it could be deleted, or the account is not correlated"
-    }
+    $action = 'RevokePermission'
+    $dryRunMessage = "Revoke KPN-BART permission: [$($actionContext.References.Permission.DisplayName)] will be executed during enforcement"
 
     # Add a message and the result of each of the validations showing what will happen during enforcement
     if ($actionContext.DryRun -eq $true) {
@@ -40,17 +30,19 @@ try {
     if (-not($actionContext.DryRun -eq $true)) {
         switch ($action) {
             'RevokePermission' {
-                Write-Information "Revoking KPN-BART permission: [$($actionContext.References.Permission.DisplayName)] - [$($actionContext.References.Permission.Reference)]"
+                $resourceGuid = [guid]::Empty
+                if (-not [guid]::TryParse([string]$actionContext.References.Permission.Reference.Reference, [ref]$resourceGuid)) {
+                    throw 'The function group permission reference does not contain a valid GUID.'
+                }
+                Write-Information "Revoking KPN-BART permission: [$($actionContext.References.Permission.DisplayName)] - [$resourceGuid]"
 
                 $userIdentity = [KPNBartConnectedServices.CommandService.ObjectIdentity]::new()
-                if (![string]::IsNullOrEmpty($correlatedAccount.ObjectGUID)) {
-                    $userIdentity.IdentityType = 'guid'
-                    $userIdentity.Value = $correlatedAccount.ObjectGUID
-                } 
+                $userIdentity.IdentityType = 'GUID'
+                $userIdentity.Value = $actionContext.References.Account.id
             
                 $resourceIdentity = [KPNBartConnectedServices.CommandService.ObjectIdentity]::new()
                 $resourceIdentity.IdentityType = 'guid'
-                $resourceIdentity.Value = "$($actionContext.References.Permission.Reference)"
+                $resourceIdentity.Value = $resourceGuid.ToString()
                 $ResourceAuthorization = [KPNBartConnectedServices.CommandService.ResourceAuthorizationEnum]::Access
 
                 Set-KPNBartResourceAccess -ResourceAuthorization $ResourceAuthorization -Identity $userIdentity -Add $false -ResourceIdentity $resourceIdentity
@@ -62,14 +54,6 @@ try {
                     })
             }
 
-            'NotFound' {
-                $outputContext.Success  = $true
-                $outputContext.AuditLogs.Add([PSCustomObject]@{
-                        Message = "KPN-BART account: [$($actionContext.References.Account)] for person: [$($personContext.Person.DisplayName)] could not be found, possibly indicating that it could be deleted, or the account is not correlated"
-                        IsError = $false
-                    })
-                break
-            }
         }
     }
 } catch {

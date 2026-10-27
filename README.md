@@ -129,6 +129,10 @@ Remark: The username should be in the DOMAIN\samaccountname format. (For example
 ## Remarks
 > In the create.ps1 there are two get calls to retrieve the correct user. The first one is to collect all the users and then check if there are one or multiple users found where the correlation value matches. If there are multiple found the script returns an error. If there is only one user found whe will execute the second get call to retrieve only the correct user with the necessary attributes.
 
+The create action converts dictionary or PowerShell account responses to a plain account object and requires a valid, nonempty `ObjectGUID` before reporting success. Password and `ExtensionData` fields are excluded from returned account data. Diagnostic messages report the response type and recognized field names, not attribute values. A failed lookup after creation does not roll back the remote account; verify and correlate the existing account before retrying.
+
+Offline regression checks are available in `tests/create.Tests.ps1` and run under Windows PowerShell 5.1 without contacting BART. They use the local service types and lookup functions with mocked service and create operations. These checks do not reproduce HelloID's internal result processing; live verification is still required.
+
 ### PSModule
 
 The connector uses a PowerShell module that must be installed locally. Make sure the entire 'KPNBart' folder, that contains the module, is copied to a directory accessible by the helloid agent.
@@ -162,6 +166,16 @@ The easiest way to do this is by using PowerShell from the directory in which th
 
 #### Second phase
 > the second phase happens in the update.ps1 file after the first create lifecycle executes successfully. In this phase the account will be extended with direct AD attributes and more complex properties like mail addresses, password reset on next logon, etc.
+
+`EmployeeId` is written in phase 2, not by the base-account create command. When correlation matches the person's `ExternalId` to BART's `EmployeeId`, an account left behind by a failed phase 2 may not match a repeated create action. Recover the existing account reference and complete the update phase before retrying create; no additional UPN fallback is implemented in this connector script.
+
+Update reads mail, persona, and user type from `Data.ExtensionData`. Empty specialized values are skipped rather than sent as destructive clears. Boolean text values such as `"False"` are parsed explicitly. `AccountReference.AccountCreated` identifies a newly created base account: only these accounts are considered for disabling and the configured next-logon password change. After a successful non-dry-run update, the output account reference retains its other fields and sets `AccountCreated` to `false`. Verify that HelloID persists this returned reference in the deployed environment.
+
+Update stops after the first failed write, reports the operation, exception type and script line without remote error text or account values, and leaves the phase-2 marker unchanged. Writes already accepted by BART are not rolled back. `tests/update.Tests.ps1` provides offline checks for EmployeeId enrichment, mappings, lifecycle flags, bulk failures, dry-run, and safe diagnostics. Live response formats, including the active-state query and manager response, still require verification.
+
+Before adding an email alias, update queries the existing aliases through `Get-KPNBartEmailAlias`, which requires a query-service `ObjectIdentity`. Deploy the updated `KPNBart/public/emailActions/Get-KPNBartEmailAlias.ps1` alongside the HelloID update action. Alias responses are currently expected to contain email-address strings; unsupported records stop the update before writes. Manager responses can be GUID strings, objects/dictionaries with `ObjectGUID`, or distinguished names resolved through an account lookup. Unknown responses stop the update rather than assuming that the manager differs.
+
+The AD query does not request persona or user type, and no dedicated single-account getter for these fields has been confirmed in the supplied module. When their current values are absent, configured nonempty values are still applied and an informational message identifies the missing comparison. This is not a confirmed no-change check or a guarantee that repeated setters are harmless. A provider-supported read contract is required to complete this part. Tests now project only requested AD attributes and explicitly retain this limitation.
 
 > When a user UPN is already used, the base user is correlated, instead of created, the enrichment of the account in phase 2 proceeds as normal. So the fields listed in phase 1 are not updated for existing users on a create.
 
