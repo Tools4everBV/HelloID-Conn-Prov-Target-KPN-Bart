@@ -2,24 +2,10 @@
 # HelloID-Conn-Prov-Target-KPN-BART
 
 > [!IMPORTANT]
-> This repository contains the connector and configuration code only. The implementer is responsible to acquire the connection details such as username, password, certificate, etc. You might even need to sign a contract or agreement with the supplier before implementing this connector. Please contact the client's application manager to coordinate the connector requirements.
+> This repository contains connector code and configuration only. Obtain the BART endpoint, service account, credentials, required permissions, and any supplier agreements before implementation. Coordinate these requirements with the client's application manager.
 
 > [!IMPORTANT]
-> This connector is updated to a powershell v2 connector without a test environment, therefore the code is not tested and should be treated as such.
-
-> All scripts
-- Error response and how we handle that in the scripts.
-- Function responses from the API and how they are received and processed during various actions in the connector.
-
-> Update script
-- Check if the compare of all the properties works properly. (the compare of the flat object and the separate compare of the manager, persona etc.)
-
-> Delete script
-- Check if the _Get-KPNBartUserIsActive_ function returns an object or a boolean. If it contains a boolean the code should be changed accordingly.
-
-<p align="center">
-  <img src="">
-</p>
+> Validate the SOAP service responses and lifecycle behavior in the target BART environment before production use. Dry-run results do not verify that BART accepts the requested changes.
 
 ## Table of contents
 
@@ -38,7 +24,7 @@
         - [Available functions](#available-functions)
         - [Module help](#module-help)
       - [DLL](#dll)
-      - [The create process constist of 3 phases](#the-create-process-constist-of-3-phases)
+      - [The create process consists of 2 phases](#the-create-process-consists-of-2-phases)
       - [ExtensionData](#extensionData)
   - [Setup the connector](#setup-the-connector)
   - [Getting help](#getting-help)
@@ -67,11 +53,12 @@ The following lifecycle actions are available:
 | permissions/groups/grantPermission.ps1    | PowerShell _grant_ lifecycle action              |
 | permissions/groups/revokePermission.ps1   | PowerShell _revoke_ lifecycle action             |
 | permissions/groups/permissions.ps1        | PowerShell _permissions_ lifecycle action        |
-| permissions/groups/dynamicPermissions.ps1        | PowerShell _AllInOne_ lifecycle action        |
 | permissions/functionGroups/grantPermission.ps1    | PowerShell _grant_ lifecycle action              |
 | permissions/functionGroups/revokePermission.ps1   | PowerShell _revoke_ lifecycle action             |
-| permissions/groups/permissions.ps1        | PowerShell _permissions_ lifecycle action        |
-| permissions/groups/dynamicPermissions.ps1        | PowerShell _AllInOne_ lifecycle action        |
+| permissions/FunctionGroups/permissions.ps1        | PowerShell _permissions_ lifecycle action        |
+| permissions/groups/importPermissions.ps1 | PowerShell _import_ permissions lifecycle action |
+| permissions/FunctionGroups/importPermissions.ps1 | PowerShell _import_ permissions lifecycle action |
+| import.ps1             | PowerShell _account import_ lifecycle action     |
 | configuration.json     | Default _configuration.json_ |
 | fieldMapping.json      | Default _fieldMapping.json_   |
 
@@ -93,7 +80,7 @@ To properly setup the correlation:
     | ------------------------- | --------------------------------- |
     | Enable correlation        | `True`                            |
     | Person correlation field  | `PersonContext.Person.ExternalId` |
-    | Account correlation field | ``                                |
+    | Account correlation field | `EmployeeId`                      |
 
 > [!TIP]
 > _For more information on correlation, please refer to our correlation [documentation](https://docs.helloid.com/en/provisioning/target-systems/powershell-v2-target-systems/correlation.html) pages_.
@@ -104,30 +91,31 @@ The field mapping can be imported by using the _fieldMapping.json_ file.
 
 ### Connection settings
 
-| Setting                         | Description                                                  | Example                                                      |
-| ------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
-| Bart service URL                | Example:The url to the bart service endpoint to connect to   | https://<companyabbreviation>.bartws.local                   |
-| Username                        | The user name of the account with wich the HelloID provisioning agent connects to bart to perform all operations. | APP\Tools4eve_PE   (See remark)                          |
-| Password                        | Password of the above connection account                     |                                                              |
-| Full path to KPN-Bart Powershel | The full path to the module *.psd1 file                      | D:\data\HelloID-Conn-Prov-Target-KPN-Bart\KPNBart\KPNBart.psd1 |
-| Default AD Domain               | The default domain in which to create new bart accounts.     | Mydomain.local                                             |
+| Setting | Description | Example |
+| --- | --- | --- |
+| Bart service base URL (`baseUrl`) | BART SOAP service endpoint | `https://<company-abbreviation>.bartws.asp.local` |
+| User name (`username`) | Service account used by the HelloID provisioning agent | `APP\Tools4eve_PE` |
+| Password (`password`) | Password for the service account | Set in HelloID; do not store in this repository |
+| Full path to KPN-Bart PowerShell module (`moduleLocation`) | Path to the module manifest on the agent server | `D:\data\HelloID-Conn-Prov-Target-KPN-Bart\KPNBart\KPNBart.psd1` |
+| Default AD Domain (`defaultADDomain`) | Domain used for new BART accounts | `mydomain.local` |
+| Default email address suffix (`emailAddressSuffix`) | Suffix used by email-related actions | `customer.nl` |
 
-Remark: The username should be in the DOMAIN\samaccountname format. (For example: APP\Tools4eve_PE). If the password is incorrect, you will recieve the error message:  ""The HTTP request is unauthorized with client authentication scheme 'Negotiate'. The authentication header received from the server was 'Negotiate,NTLM'.""
+The service account name must use `DOMAIN\samaccountname` format. An authentication error mentioning `Negotiate` or `NTLM` usually indicates invalid credentials or an account that cannot authenticate to the BART service.
 
 ### Prerequisites
 
 - [ ] KPN Bart PowerShell module
 
-  The KPN Bart PowerShell module must be installed locally. The module can be downloaded directly from the Github repository. Make sure you unblock the DLL in Windows.
+  Copy the complete `KPNBart` module folder to a location accessible by the HelloID agent. Configure the full path to `KPNBart.psd1` in `moduleLocation`. Unblock the module DLL after downloading it.
 
 - [ ] Windows PowerShell 5.1
 
-  Windows PowerShell 5.1 must be installed on the server where the 'HelloID agent and provisioning agent' are running.
+  Windows PowerShell 5.1 must be installed on the server where the HelloID agent and provisioning agent are running. The agent must be able to reach the BART endpoint and load the module under its own runtime identity.
 
   > The connector is not compatible with older versions of Windows PowerShell or PowerShell Core.
 
 ## Remarks
-> In the create.ps1 there are two get calls to retrieve the correct user. The first one is to collect all the users and then check if there are one or multiple users found where the correlation value matches. If there are multiple found the script returns an error. If there is only one user found whe will execute the second get call to retrieve only the correct user with the necessary attributes.
+The create action first queries BART for the configured correlation value. No match creates a base account; one match correlates the existing account; multiple matches stop the action to avoid ambiguity. A valid `ObjectGUID` is required. If the create request succeeds but the follow-up lookup fails, BART may already contain the account; verify it in BART before retrying because the connector does not roll back remote changes.
 
 ### PSModule
 
@@ -155,26 +143,40 @@ The easiest way to do this is by using PowerShell from the directory in which th
   Get-ChildItem | Unblock-File
 ```
 
-### The create process consist of 2 phases
+### The create process consists of 2 phases
 
 #### First phase
-> The first fase happens in the create.ps1 file where the "base" account is created with the following fields: FirstName,LastName,Initials,Password,UserPrincipalName,DisplayName,MiddleName, SamAccountName
+`create.ps1` creates the base account with `FirstName`, `LastName`, `Initials`, `Password`, `UserPrincipalName`, `DisplayName`, `MiddleName`, and `SamAccountName`. `UserPrincipalName` is required for the post-create lookup. Newly created accounts are disabled; the separate `enable.ps1` lifecycle action enables them when HelloID determines they should be active. A correlated existing account is not disabled by create.
 
 #### Second phase
-> the second phase happens in the update.ps1 file after the first create lifecycle executes successfully. In this phase the account will be extended with direct AD attributes and more complex properties like mail addresses, password reset on next logon, etc.
+`update.ps1` enriches the account after create, including direct AD attributes, manager, persona or user type, mail, and other mapped values. `EmployeeId` is written in this phase and is the recommended BART account correlation field for `PersonContext.Person.ExternalId`. A base account left behind before this phase completes may therefore not yet be correlated by EmployeeId; find and complete or correct it in BART before retrying create.
 
-> When a user UPN is already used, the base user is correlated, instead of created, the enrichment of the account in phase 2 proceeds as normal. So the fields listed in phase 1 are not updated for existing users on a create.
+Map only one of `ExtensionData.Persona` or `ExtensionData.UserType` when specifying the account type. If Persona is mapped, the UserType conversion is skipped. Persona names must match the name configured in BART. Verify the values in BART before enabling provisioning.
 
-> When a user is created, but the supplied SamAccountName does violate a Bart naming convention, the create action will fail with an exception, but Bart may still create the base account, with an automatically generated SamAccountName. In such case, retrying the create in HelloId will successfully create the account, but with the automated SamAccountName
+`Department` must already exist in BART. If a mapped department is unknown, the update action skips that attribute and writes an audit message; create the department in BART and run the update again.
 
-> The grant and revoke permissions scripts work for any type of resource. Therefore there are no different files for different types resources. The grant/revoke files for the groups can be used directly for other resources also.
+Writes already accepted by BART are not rolled back if a later update action fails. Review the HelloID audit log and the BART account before retrying. The connector uses `AccountCreated` in the account reference to distinguish newly created accounts; verify that HelloID retains the returned account reference during implementation.
+
+Account import returns BART accounts with `ObjectGUID` as the account reference. The enabled state is read from `userAccountControl`; if that attribute is unavailable, the import action falls back to `Get-KPNBartUserIsActive`. Confirm this fallback response against the BART service version in use.
+
+Permission import is available for both Groups and FunctionGroups. It queries BART authorization for each resource, so the service account needs permission to read those resource memberships as well as perform account lifecycle actions.
+
+> When a user UPN is already used, the account can be returned as an existing account by BART. The create action correlates by the configured correlation field; it does not update the base fields during create. Verify the actual duplicate-UPN behavior with the target BART service before production.
+
+> If a supplied `SamAccountName` violates a BART naming convention, BART may create the base account with an automatically generated name even when the action reports an error. Check BART for a partially created account before retrying.
+
+> Grant and revoke scripts are provided separately for Groups and FunctionGroups. Use the matching permission scripts and reference format when configuring each resource type.
 
 ### ExtensionData
 > The field mapping contains multiple properties that start with _extensionData._. These properties are added to extensionData because they are not needed for comparison during the update process. Using _extensionData._ helps make the removal process during the update cleaner.
 
 ## Setup the connector
 
-> _How to setup the connector in HelloID._ Are special settings required. Like the _primary manager_ settings for a source connector.
+1. Install the complete `KPNBart` module on the HelloID agent server, unblock `KPNBart/bin/KPNBartConnectedServices.dll`, and configure `moduleLocation` to the `.psd1` file.
+2. Configure the BART service URL and a service account in `DOMAIN\samaccountname` format. Confirm that the account can authenticate to the endpoint and has the required account, department, persona, and resource authorization permissions.
+3. Import `fieldMapping.json` and review every mapping against the customer's BART setup. Configure correlation from `PersonContext.Person.ExternalId` to BART `EmployeeId`.
+4. Configure the target system to execute on-premises. Run dry runs first, then validate create, update, enable/disable, delete, account import, and both permission imports with a non-production account and representative resources.
+5. Confirm the create/update two-phase behavior, primary email handling, manager and persona lookups, and the active-state fallback with the actual BART service. Inspect the BART account and HelloID account reference after each test before enabling production enforcement.
 
 ## Getting help
 

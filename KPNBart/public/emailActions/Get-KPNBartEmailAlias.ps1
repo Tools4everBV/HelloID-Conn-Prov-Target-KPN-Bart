@@ -11,7 +11,7 @@ function Get-KPNBartEmailAlias {
     #>
     [CmdletBinding()]
     param (
-        [String]
+        [KPNBartConnectedServices.QueryService.ObjectIdentity]
         $Identity
     )
 
