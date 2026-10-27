@@ -7,47 +7,70 @@
 [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
 
 try {
-    # Verify if [aRef] has a value
-    if ([string]::IsNullOrEmpty($($actionContext.References.Account))) {
+    $actionMessage = 'validating account reference'
+    if ([string]::IsNullOrEmpty([string]$actionContext.References.Account.Id)) {
         throw 'The account reference could not be found'
     }
+    $accountId = [string]$actionContext.References.Account.Id
 
+    $actionMessage = 'initializing KPN-Bart service clients'
     Write-Information "Import module $($actionContext.Configuration.ModuleLocation) and initialize KPN WSDL Services"
     Import-Module $actionContext.Configuration.ModuleLocation -Force
     Initialize-KPNBartServiceClients -Username $actionContext.Configuration.UserName -Password $actionContext.Configuration.password -BaseUrl $actionContext.Configuration.BaseUrl
 
-    Write-Information "Verifying if a KPN-BART account for [$($personContext.Person.DisplayName)] exists"
-
+    $actionMessage = 'verifying if account exists'
+    Write-Information "Verifying if KPN-BART account [$accountId] for [$($personContext.Person.DisplayName)] exists"
     $queryObjectIdentity = [KPNBartConnectedServices.QueryService.ObjectIdentity]::new()
     $queryObjectIdentity.IdentityType = 'Guid'
-    $queryObjectIdentity.Value = $actionContext.References.Account.id
+    $queryObjectIdentity.Value = $accountId
 
-    $correlatedAccount = Get-KPNBartUserIsActive -Identity $queryObjectIdentity
+    $accountExists = $true
+    $isActive = $null
+    try {
+        $activeResponse = Get-KPNBartUserIsActive -Identity $queryObjectIdentity -ErrorAction Stop
+        if ($null -eq $activeResponse) {
+            $accountExists = $false
+        } elseif ($activeResponse -is [bool]) {
+            $isActive = $activeResponse
+        } elseif ($null -ne $activeResponse.IsActive) {
+            $isActive = 'True' -eq [string]$activeResponse.IsActive
+        }
+    } catch {
+        if ("$($_.Exception.Message) $($_.Exception.InnerException.Message)" -match 'not found|does not exist|niet gevonden|bestaat niet') {
+            $accountExists = $false
+        } else {
+            throw
+        }
+    }
+    Write-Information "Account exists: [$accountExists]. Active: [$isActive]"
 
-    if ($null -ne $correlatedAccount) {
-        $action = 'DisableAccount'
-        $dryRunMessage = "Disable KPN-BART account: [$($actionContext.References.Account)] for person: [$($personContext.Person.DisplayName)] will be executed during enforcement"
-    } else {
+    if (-not $accountExists) {
         $action = 'NotFound'
-        $dryRunMessage = "KPN-BART account: [$($actionContext.References.Account)] for person: [$($personContext.Person.DisplayName)] could not be found, possibly indicating that it could be deleted, or the account is not correlated"
+        $dryRunMessage = "KPN-BART account [$accountId] for person [$($personContext.Person.DisplayName)] could not be found, possibly indicating that it could be deleted, or the account is not correlated"
+    } elseif ($false -eq $isActive) {
+        $action = 'NoChanges'
+        $dryRunMessage = "KPN-BART account [$accountId] for person [$($personContext.Person.DisplayName)] is already disabled"
+    } else {
+        $action = 'DisableAccount'
+        $dryRunMessage = "Disable KPN-BART account [$accountId] for person [$($personContext.Person.DisplayName)] will be executed during enforcement"
     }
 
-    # Add a message and the result of each of the validations showing what will happen during enforcement
     if ($actionContext.DryRun -eq $true) {
         Write-Information "[DryRun] $dryRunMessage"
+        $outputContext.Success = $true
     }
 
     # Process
     if (-not($actionContext.DryRun -eq $true)) {
         switch ($action) {
             'DisableAccount' {
-                Write-Information "Disabling KPN-BART account with accountReference: [$($actionContext.References.Account)]"
+                $actionMessage = 'disabling account'
+                Write-Information "Disabling KPN-BART account [$accountId]"
 
                 $commandObjectIdentity = [KPNBartConnectedServices.CommandService.ObjectIdentity]::new()
-                $commandObjectIdentity.IdentityType = $queryObjectIdentity.IdentityType
-                $commandObjectIdentity.Value = $queryObjectIdentity.Value
-
-                Disable-KPNBartUser  -Identity $commandObjectIdentity
+                $commandObjectIdentity.IdentityType = 'Guid'
+                $commandObjectIdentity.Value = $accountId
+                $null = Disable-KPNBartUser -Identity $commandObjectIdentity -ErrorAction Stop
 
                 $outputContext.Success = $true
                 $outputContext.AuditLogs.Add([PSCustomObject]@{
@@ -57,10 +80,19 @@ try {
                 break
             }
 
+            'NoChanges' {
+                $outputContext.Success = $true
+                $outputContext.AuditLogs.Add([PSCustomObject]@{
+                        Message = $dryRunMessage
+                        IsError = $false
+                    })
+                break
+            }
+
             'NotFound' {
                 $outputContext.Success = $true
                 $outputContext.AuditLogs.Add([PSCustomObject]@{
-                        Message = "KPN-BART account: [$($actionContext.References.Account)] for person: [$($personContext.Person.DisplayName)] could not be found, possibly indicating that it could be deleted, or the account is not correlated"
+                        Message = $dryRunMessage
                         IsError = $false
                     })
                 break
@@ -68,19 +100,16 @@ try {
         }
     }
 } catch {
-    $outputContext.success = $false
+    $outputContext.Success = $false
     $ex = $PSItem
-
-    # TEMP code
-    Write-Warning "$($ex.Exception.message)"
-    Write-Warning "$($ex.Exception.InnerException.message)"
-    Write-Warning "$($ex.Exception.InnerException.InnerException.message)"
-
-    $auditMessage = "Could not create or correlate KPN-Bart account. Error: $($ex.Exception.Message)"
-    Write-Warning "Error at Line '$($ex.InvocationInfo.ScriptLineNumber)': $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
+    $errorMessage = $ex.Exception.Message
+    if ($null -ne $ex.Exception.InnerException) {
+        $errorMessage = "$errorMessage. Inner error: $($ex.Exception.InnerException.Message)"
+    }
+    Write-Warning "Error at Line '$($ex.InvocationInfo.ScriptLineNumber)': $($ex.InvocationInfo.Line). Error: $errorMessage"
 
     $outputContext.AuditLogs.Add([PSCustomObject]@{
-            Message = $auditMessage
+            Message = "Could not disable KPN-Bart account. Error $($actionMessage): $errorMessage"
             IsError = $true
         })
 }
