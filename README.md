@@ -9,24 +9,32 @@
 
 ## Table of contents
 
-- [HelloID-Conn-Prov-Target-KPN-BART](#helloid-conn-prov-target-KPN-BART)
+- [HelloID-Conn-Prov-Target-KPN-BART](#helloid-conn-prov-target-kpn-bart)
   - [Table of contents](#table-of-contents)
   - [Introduction](#introduction)
-    - [Functionality](#Functionality)
+    - [Functionality](#functionality)
+  - [Supported features](#supported-features)
   - [Getting started](#getting-started)
+    - [HelloID Icon URL](#helloid-icon-url)
     - [Provisioning PowerShell V2 connector](#provisioning-powershell-v2-connector)
       - [Correlation configuration](#correlation-configuration)
       - [Field mapping](#field-mapping)
+      - [Account Reference](#account-reference)
     - [Connection settings](#connection-settings)
-    - [Prerequisites](#prerequisites)
-    - [Remarks](#remarks)
-      - [PSModule](#ps-module)
-        - [Available functions](#available-functions)
-        - [Module help](#module-help)
-      - [DLL](#dll)
-      - [The create process consists of 2 phases](#the-create-process-consists-of-2-phases)
-      - [ExtensionData](#extensionData)
+    - [Requirements](#requirements)
+  - [Remarks](#remarks)
+    - [PSModule](#psmodule)
+      - [Available functions](#available-functions)
+      - [Module help](#module-help)
+    - [DLL](#dll)
+    - [The create process consists of 2 phases](#the-create-process-consists-of-2-phases)
+      - [First phase](#first-phase)
+      - [Second phase](#second-phase)
+    - [ExtensionData](#extensiondata)
   - [Setup the connector](#setup-the-connector)
+  - [Development resources](#development-resources)
+    - [API endpoints](#api-endpoints)
+    - [API documentation](#api-documentation)
   - [Getting help](#getting-help)
   - [HelloID docs](#helloid-docs)
 
@@ -53,16 +61,40 @@ The following lifecycle actions are available:
 | permissions/groups/grantPermission.ps1    | PowerShell _grant_ lifecycle action              |
 | permissions/groups/revokePermission.ps1   | PowerShell _revoke_ lifecycle action             |
 | permissions/groups/permissions.ps1        | PowerShell _permissions_ lifecycle action        |
-| permissions/functionGroups/grantPermission.ps1    | PowerShell _grant_ lifecycle action              |
-| permissions/functionGroups/revokePermission.ps1   | PowerShell _revoke_ lifecycle action             |
+| permissions/groups/subPermission.ps1     | PowerShell _sub permissions_ lifecycle action    |
+| permissions/FunctionGroups/grantPermission.ps1    | PowerShell _grant_ lifecycle action              |
+| permissions/FunctionGroups/revokePermission.ps1   | PowerShell _revoke_ lifecycle action             |
 | permissions/FunctionGroups/permissions.ps1        | PowerShell _permissions_ lifecycle action        |
+| permissions/FunctionGroups/subPermission.ps1      | PowerShell _sub permissions_ lifecycle action    |
 | permissions/groups/importPermissions.ps1 | PowerShell _import_ permissions lifecycle action |
 | permissions/FunctionGroups/importPermissions.ps1 | PowerShell _import_ permissions lifecycle action |
 | import.ps1             | PowerShell _account import_ lifecycle action     |
+| uniquenessCheck.ps1    | PowerShell _uniqueness check_ lifecycle action   |
 | configuration.json     | Default _configuration.json_ |
 | fieldMapping.json      | Default _fieldMapping.json_   |
 
+## Supported features
+
+The following features are available:
+
+| Feature                                   | Supported | Actions                                 | Remarks                                          |
+| ----------------------------------------- | --------- | --------------------------------------- | ------------------------------------------------ |
+| **Account Lifecycle**                     | Yes       | Create, Update, Enable, Disable, Delete | New accounts are created disabled                |
+| **Permissions**                           | Yes       | Retrieve, Grant, Revoke                 | Groups and FunctionGroups, static and dynamic (`subPermission.ps1`) |
+| **Resources**                             | No        | -                                       |                                                  |
+| **Entitlement Import: Accounts**          | Yes       | -                                       | `import.ps1`                                     |
+| **Entitlement Import: Permissions**       | Yes       | -                                       | `importPermissions.ps1` for Groups and FunctionGroups |
+| **Governance Reconciliation Resolutions** | No        | -                                       | Not verified                                     |
+
 ## Getting started
+
+### HelloID Icon URL
+
+URL of the icon used for the HelloID Provisioning target system.
+
+```
+https://raw.githubusercontent.com/Tools4everBV/HelloID-Conn-Prov-Target-KPN-Bart/refs/heads/main/Icon.png
+```
 
 ### Provisioning PowerShell V2 connector
 
@@ -89,6 +121,10 @@ To properly setup the correlation:
 
 The field mapping can be imported by using the _fieldMapping.json_ file.
 
+#### Account Reference
+
+The account reference is an object with the properties `Id` (the BART `ObjectGUID` of the account) and `AccountCreated` (`true` when the account was created by the connector, `false` when an existing account was correlated or imported).
+
 ### Connection settings
 
 | Setting | Description | Example |
@@ -97,12 +133,12 @@ The field mapping can be imported by using the _fieldMapping.json_ file.
 | User name (`username`) | Service account used by the HelloID provisioning agent | `APP\Tools4eve_PE` |
 | Password (`password`) | Password for the service account | Set in HelloID; do not store in this repository |
 | Full path to KPN-Bart PowerShell module (`moduleLocation`) | Path to the module manifest on the agent server | `D:\data\HelloID-Conn-Prov-Target-KPN-Bart\KPNBart\KPNBart.psd1` |
-| Default AD Domain (`defaultADDomain`) | Domain used for new BART accounts | `mydomain.local` |
-| Default email address suffix (`emailAddressSuffix`) | Suffix used by email-related actions | `customer.nl` |
+| Default AD Domain (`defaultADDomain`) | Present in `configuration.json`; not read by any script in this repository | `mydomain.local` |
+| Default email address suffix (`emailAddressSuffix`) | Present in `configuration.json`; not read by any script in this repository | `customer.nl` |
 
 The service account name must use `DOMAIN\samaccountname` format. An authentication error mentioning `Negotiate` or `NTLM` usually indicates invalid credentials or an account that cannot authenticate to the BART service.
 
-### Prerequisites
+### Requirements
 
 - [ ] KPN Bart PowerShell module
 
@@ -149,9 +185,11 @@ The easiest way to do this is by using PowerShell from the directory in which th
 `create.ps1` creates the base account with `FirstName`, `LastName`, `Initials`, `Password`, `UserPrincipalName`, `DisplayName`, `MiddleName`, and `SamAccountName`. `UserPrincipalName` is required for the post-create lookup. Newly created accounts are disabled; the separate `enable.ps1` lifecycle action enables them when HelloID determines they should be active. A correlated existing account is not disabled by create.
 
 #### Second phase
-`update.ps1` enriches the account after create, including direct AD attributes, manager, persona or user type, mail, and other mapped values. `EmployeeId` is written in this phase and is the recommended BART account correlation field for `PersonContext.Person.ExternalId`. A base account left behind before this phase completes may therefore not yet be correlated by EmployeeId; find and complete or correct it in BART before retrying create.
+`update.ps1` enriches the account after create, including direct AD attributes, manager, persona or user type, and other mapped values. Mail (`ExtensionData.Mail`) and `ExtensionData.ExchangeWhenSettingMailAttribute` are mapped for Create only in the default field mapping; `update.ps1` only handles mail when `ExtensionData.Mail` is mapped for Update. `EmployeeId` is written in this phase and is the recommended BART account correlation field for `PersonContext.Person.ExternalId`. A base account left behind before this phase completes may therefore not yet be correlated by EmployeeId; find and complete or correct it in BART before retrying create.
 
 Map only one of `ExtensionData.Persona` or `ExtensionData.UserType` when specifying the account type. If Persona is mapped, the UserType conversion is skipped. Persona names must match the name configured in BART. Verify the values in BART before enabling provisioning.
+
+`ExtensionData.UserType` is not part of the default field mapping. `ExtensionData.Werkplekprofiel` is optional and not part of the default field mapping either; when it is mapped, `update.ps1` sets the desktop list of the account to that value on every update.
 
 `Department` must already exist in BART. If a mapped department is unknown, the update action skips that attribute and writes an audit message; create the department in BART and run the update again.
 
@@ -177,6 +215,16 @@ Permission import is available for both Groups and FunctionGroups. It queries BA
 3. Import `fieldMapping.json` and review every mapping against the customer's BART setup. Configure correlation from `PersonContext.Person.ExternalId` to BART `EmployeeId`.
 4. Configure the target system to execute on-premises. Run dry runs first, then validate create, update, enable/disable, delete, account import, and both permission imports with a non-production account and representative resources.
 5. Confirm the create/update two-phase behavior, primary email handling, manager and persona lookups, and the active-state fallback with the actual BART service. Inspect the BART account and HelloID account reference after each test before enabling production enforcement.
+
+## Development resources
+
+### API endpoints
+
+The connector uses the BART SOAP query and command services (WSDL) through the `KPNBart` PowerShell module in the `KPNBart` folder. The service endpoint is configured with the `baseUrl` setting.
+
+### API documentation
+
+The BART web service documentation is provided by KPN with the BART environment and is not publicly available.
 
 ## Getting help
 
