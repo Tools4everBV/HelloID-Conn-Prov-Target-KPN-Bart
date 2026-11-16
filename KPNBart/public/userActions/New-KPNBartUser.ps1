@@ -64,6 +64,7 @@ function New-KPNBartUser {
         $createUserCommand.Initials = $Initials
         $createUserCommand.Password = $plainPassword
         $createUserCommand.UserPrincipalName = $UserPrincipalName
+        $createUserCommand.DisplayName = $DisplayName
         $createUserCommand.MiddleName = $MiddleName
         $createUserCommand.SamAccountName = $SamAccountName
 

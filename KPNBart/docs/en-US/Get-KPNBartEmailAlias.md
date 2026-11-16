@@ -13,7 +13,7 @@ Retrieves the email address aliases
 ## SYNTAX
 
 ```
-Get-KPNBartEmailAlias [[-Identity] <String>] [<CommonParameters>]
+Get-KPNBartEmailAlias [[-Identity] <ObjectIdentity>] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
@@ -23,10 +23,13 @@ Retrieves a list of email address aliases for the specified user
 
 ### Example 1
 ```powershell
-PS C:\> {{ Add example code here }}
+$identity = [KPNBartConnectedServices.QueryService.ObjectIdentity]::new()
+$identity.IdentityType = 'Guid'
+$identity.Value = '11111111-1111-1111-1111-111111111111'
+Get-KPNBartEmailAlias -Identity $identity
 ```
 
-{{ Add example description here }}
+Retrieves aliases for an account using a query-service identity object.
 
 ## PARAMETERS
 
@@ -35,7 +38,7 @@ The Identity of the user.
 This is the Identity in Active Directory
 
 ```yaml
-Type: String
+Type: KPNBartConnectedServices.QueryService.ObjectIdentity
 Parameter Sets: (All)
 Aliases:
 
@@ -54,5 +57,7 @@ This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable
 ## OUTPUTS
 
 ## NOTES
+
+The WSDL requires a query-service `ObjectIdentity`, not a plain string. Existing callers that supply a string must construct an identity object before calling this function.
 
 ## RELATED LINKS
